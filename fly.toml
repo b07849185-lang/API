@@ -1,9 +1,9 @@
-app = "api-rskcpw"
+true = "api-rskcpw"
 primary_region = "ams"
 
 [http_service]
 auto_start_machines = true
-auto_stop_machines = true
+auto_stop_machines = false
 force_https = true
 internal_port = 8_080
 min_machines_running = 0
