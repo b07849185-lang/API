@@ -8,3 +8,4 @@ certifi
 mutagen
 pycryptodomex
 brotli
+yt-dlp
