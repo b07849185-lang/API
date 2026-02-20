@@ -1,15 +1,25 @@
-true = "api-rskcpw"
+app = "api-rskcpw"
 primary_region = "ams"
 
 [http_service]
-auto_start_machines = true
-auto_stop_machines = false
-force_https = true
-internal_port = 8_080
-min_machines_running = 0
-processes = [ "app" ]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 500
+    hard_limit = 1000
 
 [[vm]]
-cpu_kind = "shared"
-cpus = 4
-memory = "5gb"
+  cpu_kind = "shared"
+  cpus = 4
+  memory = "5gb"
+
+[env]
+  PYTHONOPTIMIZE = "1"
+  UVLOOP_ENABLED = "1"
+  TITAN_SECRET_KEY = "Titan_2026_Ultra_Fast"
