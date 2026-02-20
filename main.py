@@ -13,7 +13,7 @@ import secrets as _secrets
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List, Dict, Any, Tuple
 from fastapi import FastAPI, HTTPException, Depends, Query, Security
-from fastapi.responses import ORJSONResponse
+from fastapi.responses import ORJSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security.api_key import APIKeyHeader
@@ -420,6 +420,9 @@ async def shutdown_event():
 @app.get("/")
 async def index():
     try:
+        if os.path.exists("index.html"):
+            with open("index.html", "r", encoding="utf-8") as f:
+                return HTMLResponse(content=f.read())
         return ORJSONResponse({"system": "TitanOS Core", "status": "Active", "engine": "Ultimate CFFI/JS"})
     except Exception:
         return ORJSONResponse({"status": "Active"})
