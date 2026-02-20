@@ -7,16 +7,29 @@ ENV TZ=UTC
 # توجيه المكتبات لاستخدام الأنوية الأربعة بالكامل
 ENV OMP_NUM_THREADS=4 
 
+# تعريف مسار Deno عشان النظام يشوفه كأمر أساسي
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="$DENO_INSTALL/bin:$PATH"
+
 WORKDIR /app
 
-# تثبيت الحزم الأساسية + aria2 لتسريع التحميل + build-essential لتسريع بناء المكتبات
+# تثبيت الحزم الأساسية + aria2 + build-essential + git 
+# + إضافة Node.js و unzip (مهم لفك ضغط Deno)
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg curl aria2 build-essential && \
-    rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+    ffmpeg curl aria2 build-essential git nodejs unzip && \
+    # تثبيت Deno
+    curl -fsSL https://deno.land/install.sh | sh && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# إعداد ملف الكونفيج العام لـ yt-dlp عشان يثبت الـ remote-components إجبارياً
+RUN mkdir -p /etc/yt-dlp && \
+    echo "--remote-components ejs:github" > /etc/yt-dlp.conf
 
 COPY requirements.txt .
 
-# تحديث pip وتثبيت orjson (أسرع جيسون) والأدوات الأساسية فوراً
+# تحديث pip وتثبيت orjson (أسرع جيسون) والأدوات الأساسية
+# + curl_cffi لفك الروابط المستعصية
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir orjson uvloop httptools && \
     pip install --no-cache-dir -r requirements.txt && \
@@ -28,4 +41,3 @@ EXPOSE 8080
 
 # تشغيل السيرفر بأقصى طاقة (4 عمال لـ 4 أنوية)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--loop", "uvloop", "--http", "httptools", "--workers", "4"]
-#.
