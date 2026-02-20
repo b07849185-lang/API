@@ -1,11 +1,13 @@
 # main.py
 """
-TitanOS - hardened extractor service (6.2.0 - Flawless Logic)
+TitanOS - Hardened Extractor Service (6.3.0 - Direct Cookie Engine)
 Features:
 - API key auth (constant-time compare)
-- Cookie pool with temporary bans & reuse-delay
-- Fixed banning logic (no unfair bans on no-cookie fallbacks)
-- Fixed Player Extraction (Removed overly aggressive skips)
+- Enterprise Cookie pool with temporary bans & reuse-delay
+- PROXY SYSTEM COMPLETELY REMOVED (Direct Secure Connection)
+- Multi-strategy yt-dlp extraction (API, CLI, remote, no-cookies)
+- Backoff, jitter, rate-limiting, reduced default concurrency
+- Fixed Player Extraction for 2026 Youtube changes
 """
 import os
 import time
@@ -25,6 +27,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 
+# JSON loader (orjson if present for ultra-fast parsing)
 try:
     import orjson as _orjson  # type: ignore
     def _loads_bytes(b: bytes) -> dict:
@@ -34,17 +37,14 @@ except Exception:
     def _loads_bytes(b: bytes) -> dict:
         return _json.loads(b.decode("utf-8", "ignore") if isinstance(b, bytes) else b)
 
-import yt_dlp
+import yt_dlp  # Relies on the provided 2026 extractor files
 
-# ============== configuration ==============
+# ============== Configuration ==============
 os.environ.setdefault("TZ", "UTC")
 API_KEY = os.getenv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
 COOKIE_DIR = os.getenv("TITAN_COOKIE_DIR", "cookies")
-PROXY_FILE = os.getenv("TITAN_PROXY_FILE", "proxies.txt")  
 MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "4"))  
 CACHE_TTL = int(os.getenv("CACHE_TTL", "14400"))
-PROXY_COOLDOWN = int(os.getenv("PROXY_COOLDOWN", "10"))  
-PROXY_BAN_TIME = int(os.getenv("PROXY_BAN_TIME", "3600"))
 COOKIE_BAN_TIME = int(os.getenv("COOKIE_BAN_TIME", "3600"))
 IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome110")
 YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")  
@@ -52,7 +52,7 @@ YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
 logger = logging.getLogger("TitanAPI")
 
-# ============== models ==============
+# ============== Models ==============
 class FormatModel(BaseModel):
     format_id: str
     ext: str
@@ -90,7 +90,7 @@ def model_to_primitive(m):
         return m.model_dump()
     return m.dict()
 
-# ============== Cookie & Proxy Managers ==============
+# ============== Enterprise Cookie Manager ==============
 class EnterpriseCookieManager:
     def __init__(self, directory: str = COOKIE_DIR, ban_time: int = COOKIE_BAN_TIME, reuse_delay: int = 10):
         self.directory = directory
@@ -134,50 +134,7 @@ class EnterpriseCookieManager:
 
 cookie_vault = EnterpriseCookieManager()
 
-class ProxyManager:
-    def __init__(self, proxy_file: str = PROXY_FILE, cooldown: int = PROXY_COOLDOWN, ban_time: int = PROXY_BAN_TIME):
-        self.file = proxy_file
-        self.cooldown = cooldown
-        self.ban_time = ban_time
-        self.pool: List[str] = []
-        self.last_used: Dict[str, float] = {}
-        self.banned: Dict[str, float] = {}
-        self._lock = asyncio.Lock()
-        self.refresh_sync()
-
-    def refresh_sync(self):
-        if os.path.exists(self.file):
-            with open(self.file, "r", encoding="utf-8") as fh:
-                lines = [l.strip() for l in fh if l.strip() and not l.strip().startswith("#")]
-            now = time.time()
-            for p in list(self.banned.keys()):
-                if now - self.banned[p] > self.ban_time:
-                    del self.banned[p]
-            self.pool = [p for p in lines if p not in self.banned]
-        else:
-            self.pool = []
-
-    async def get_proxy(self) -> Optional[str]:
-        async with self._lock:
-            if not self.pool:
-                self.refresh_sync()
-            if not self.pool:
-                return None
-            candidates = [p for p in self.pool if (time.time() - self.last_used.get(p, 0)) > self.cooldown]
-            if not candidates:
-                candidates = self.pool
-            p = random.choice(candidates)
-            self.last_used[p] = time.time()
-            return p
-
-    async def report_failure(self, proxy: str):
-        async with self._lock:
-            self.banned[proxy] = time.time()
-            if proxy in self.pool:
-                self.pool.remove(proxy)
-
-proxy_manager = ProxyManager()
-
+# ============== Memory Cache ==============
 class MemoryCache:
     def __init__(self):
         self._cache: Dict[str, Dict[str, Any]] = {}
@@ -203,7 +160,7 @@ class MemoryCache:
 
 cache_engine = MemoryCache()
 
-# ============== Titan extractor ==============
+# ============== Titan Extractor (Direct Cookie Engine) ==============
 class TitanExtractor:
     def __init__(self):
         self.thread_pool = ThreadPoolExecutor(max_workers=max(2, min(MAX_CONCURRENT_EXTRACTS, 32)))
@@ -221,8 +178,11 @@ class TitanExtractor:
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
         return p.stdout.decode("utf-8", "ignore")
 
-    async def _exec_cmd(self, *args: str, timeout: int = 25, env: Optional[dict] = None) -> Tuple[bytes, bytes]:
-        proc = await asyncio.create_subprocess_exec(*args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE, env=env)
+    async def _exec_cmd(self, *args: str, timeout: int = 25) -> Tuple[bytes, bytes]:
+        # No proxy environment variables used anymore
+        proc = await asyncio.create_subprocess_exec(
+            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+        )
         try:
             out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
             return out or b"", err or b""
@@ -230,15 +190,13 @@ class TitanExtractor:
             with contextlib.suppress(Exception): proc.kill()
             return b"", b"timeout"
 
-    def _sync_api_extract(self, url: str, cookie: Optional[str], proxy: Optional[str]) -> dict:
+    def _sync_api_extract(self, url: str, cookie: Optional[str]) -> dict:
         opts = {
             "quiet": True, "no_warnings": True, "skip_download": True, "extract_flat": False, "noplaylist": True,
-            # 🚀 إزالة webpage من الـ skip للسماح لـ yt-dlp بجلب الـ Tokens اللازمة للـ Player
             "extractor_args": {"youtube": {"player_client": ["tv", "android", "ios"], "player_skip": ["js", "configs"]}},
         }
         if cookie: opts["cookiefile"] = cookie
         if self.impersonate_supported: opts["impersonate"] = IMPERSONATE_TARGET
-        if proxy: opts["proxy"] = proxy
         with yt_dlp.YoutubeDL(opts) as ydl:
             return ydl.extract_info(url, download=False)
 
@@ -247,18 +205,15 @@ class TitanExtractor:
         async with self.sema:
             for attempt in range(1, 6):
                 cookie = await cookie_vault.get_cookie()
-                proxy = await proxy_manager.get_proxy()
                 method_used = ""
-                cookie_used = False # 🚀 مؤشر للتأكد من استخدام الكوكيز فعلياً في هذه المحاولة
-                env = os.environ.copy()
-                if proxy: env.update({"http_proxy": proxy, "https_proxy": proxy, "HTTP_PROXY": proxy, "HTTPS_PROXY": proxy})
+                cookie_used = False 
 
                 try:
                     if attempt == 1:
-                        method_used = "Fast API (yt-dlp Python API)"
+                        method_used = "Fast API (Direct Cookie)"
                         if cookie: cookie_used = True
                         loop = asyncio.get_running_loop()
-                        info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, url, cookie, proxy)
+                        info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, url, cookie)
                         if info and info.get("formats"): return info, method_used
 
                     elif attempt == 2:
@@ -267,10 +222,9 @@ class TitanExtractor:
                         if cookie: 
                             cmd.extend(["--cookies", cookie])
                             cookie_used = True
-                        if proxy: cmd.extend(["--proxy", proxy])
                         if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
                         cmd.extend(["--extractor-args", "youtube:player_client=tv;player_skip=configs,js"])
-                        out, err = await self._exec_cmd(*cmd, timeout=30, env=env)
+                        out, err = await self._exec_cmd(*cmd, timeout=30)
                         if out:
                             info = _loads_bytes(out)
                             if info.get("formats"): return info, method_used
@@ -282,20 +236,18 @@ class TitanExtractor:
                         if cookie: 
                             cmd.extend(["--cookies", cookie])
                             cookie_used = True
-                        if proxy: cmd.extend(["--proxy", proxy])
                         if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        out, err = await self._exec_cmd(*cmd, timeout=35, env=env)
+                        out, err = await self._exec_cmd(*cmd, timeout=35)
                         if out:
                             info = _loads_bytes(out)
                             if info.get("formats"): return info, method_used
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
 
                     elif attempt == 4:
-                        method_used = "CLI No-Cookies (Fallback)"
-                        cookie_used = False # 🚀 تأكيد عدم استخدام الكوكيز هنا
+                        method_used = "CLI Fallback (Android Client)"
+                        cookie_used = False # Force fallback without cookies
                         cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--extractor-args", "youtube:player_client=android;player_skip=configs"]
-                        if proxy: cmd.extend(["--proxy", proxy])
-                        out, err = await self._exec_cmd(*cmd, timeout=30, env=env)
+                        out, err = await self._exec_cmd(*cmd, timeout=30)
                         if out:
                             info = _loads_bytes(out)
                             if info.get("formats"): return info, method_used
@@ -305,7 +257,7 @@ class TitanExtractor:
                         method_used = "Final attempt - exhaustive (No-Cookies)"
                         cookie_used = False
                         cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings"]
-                        out, err = await self._exec_cmd(*cmd, timeout=35, env=env)
+                        out, err = await self._exec_cmd(*cmd, timeout=35)
                         if out:
                             info = _loads_bytes(out)
                             if info.get("formats"): return info, method_used
@@ -316,12 +268,9 @@ class TitanExtractor:
 
                 logger.warning(f"⚠️ {method_used} Failed: {last_err.strip()[:200]}")
 
-                # 🚀 الإصلاح الجوهري: حظر الكوكيز فقط إذا تم استخدامها فعلاً في هذه المحاولة المحددة!
+                # Banning logic strictly applied only if cookie was actively used in the attempt
                 if cookie_used and cookie and ("Sign in to confirm" in last_err or "Sign in to confirm you're not a bot" in last_err):
                     await cookie_vault.report_failure(cookie)
-
-                if proxy and ("403" in last_err or "timed out" in last_err.lower() or "connection refused" in last_err.lower()):
-                    await proxy_manager.report_failure(proxy)
 
                 await asyncio.sleep(min(2 ** attempt + random.random(), 8))
 
@@ -330,7 +279,7 @@ class TitanExtractor:
 titan_core = TitanExtractor()
 
 # ============== FastAPI app & auth ==============
-app = FastAPI(title="TitanOS Enterprise Edge API", version="6.2.0-Flawless", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
+app = FastAPI(title="TitanOS Enterprise Edge API", version="6.3.0-DirectCookie", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -354,7 +303,6 @@ async def _background_tasks():
             await asyncio.sleep(300)
             await cache_engine.cleanup()
             cookie_vault.refresh_pool_sync()
-            proxy_manager.refresh_sync()
     except asyncio.CancelledError:
         pass
 
@@ -366,7 +314,7 @@ async def shutdown_event():
 
 @app.get("/", tags=["System"])
 async def index():
-    return ORJSONResponse({"system": "TitanOS Edge", "status": "Operational"})
+    return ORJSONResponse({"system": "TitanOS Edge", "status": "Operational", "mode": "Direct Cookie Engine"})
 
 @app.get("/api/v1/extract", response_model=MediaResponse, tags=["Media"])
 async def extract_media(url: str = Query(...), audio_only: bool = Query(True), force_refresh: bool = Query(False), auth: str = Depends(verify_auth)):
