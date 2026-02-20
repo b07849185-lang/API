@@ -1,13 +1,13 @@
 # main.py
 """
-TitanOS - Hardened Extractor Service (6.3.0 - Direct Cookie Engine)
+TitanOS - Hardened Extractor Service (6.5.0 - Ultimate Web/EJS/CFFI Engine)
 Features:
 - API key auth (constant-time compare)
 - Enterprise Cookie pool with temporary bans & reuse-delay
 - PROXY SYSTEM COMPLETELY REMOVED (Direct Secure Connection)
-- Multi-strategy yt-dlp extraction (API, CLI, remote, no-cookies)
-- Backoff, jitter, rate-limiting, reduced default concurrency
-- Fixed Player Extraction for 2026 Youtube changes
+- EXCLUSIVE Web Client utilization for perfect Cookie integration
+- Native curl_cffi & JS Runtime (Node/Deno) exploitation
+- Remote EJS (ejs:github) enforced for advanced JS bypassing
 """
 import os
 import time
@@ -37,7 +37,7 @@ except Exception:
     def _loads_bytes(b: bytes) -> dict:
         return _json.loads(b.decode("utf-8", "ignore") if isinstance(b, bytes) else b)
 
-import yt_dlp  # Relies on the provided 2026 extractor files
+import yt_dlp
 
 # ============== Configuration ==============
 os.environ.setdefault("TZ", "UTC")
@@ -160,7 +160,7 @@ class MemoryCache:
 
 cache_engine = MemoryCache()
 
-# ============== Titan Extractor (Direct Cookie Engine) ==============
+# ============== Titan Extractor ==============
 class TitanExtractor:
     def __init__(self):
         self.thread_pool = ThreadPoolExecutor(max_workers=max(2, min(MAX_CONCURRENT_EXTRACTS, 32)))
@@ -178,8 +178,7 @@ class TitanExtractor:
         p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
         return p.stdout.decode("utf-8", "ignore")
 
-    async def _exec_cmd(self, *args: str, timeout: int = 25) -> Tuple[bytes, bytes]:
-        # No proxy environment variables used anymore
+    async def _exec_cmd(self, *args: str, timeout: int = 35) -> Tuple[bytes, bytes]:
         proc = await asyncio.create_subprocess_exec(
             *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
@@ -192,8 +191,13 @@ class TitanExtractor:
 
     def _sync_api_extract(self, url: str, cookie: Optional[str]) -> dict:
         opts = {
-            "quiet": True, "no_warnings": True, "skip_download": True, "extract_flat": False, "noplaylist": True,
-            "extractor_args": {"youtube": {"player_client": ["tv", "android", "ios"], "player_skip": ["js", "configs"]}},
+            "quiet": True, 
+            "no_warnings": True, 
+            "skip_download": True, 
+            "extract_flat": False, 
+            "noplaylist": True,
+            # 🚀 الكوكيز مع عميل الويب حصرياً لمنع تعارضات يوتيوب 2026
+            "extractor_args": {"youtube": {"player_client": ["web"]}},
         }
         if cookie: opts["cookiefile"] = cookie
         if self.impersonate_supported: opts["impersonate"] = IMPERSONATE_TARGET
@@ -210,20 +214,20 @@ class TitanExtractor:
 
                 try:
                     if attempt == 1:
-                        method_used = "Fast API (Direct Cookie)"
+                        method_used = "Fast API (Web Client + Cookie + cffi)"
                         if cookie: cookie_used = True
                         loop = asyncio.get_running_loop()
                         info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, url, cookie)
                         if info and info.get("formats"): return info, method_used
 
                     elif attempt == 2:
-                        method_used = "CLI IPv6 (TV Client)"
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--force-ipv6"]
+                        method_used = "CLI IPv6 (Web Client + Remote EJS)"
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--force-ipv6", "--remote-components", "ejs:github"]
                         if cookie: 
                             cmd.extend(["--cookies", cookie])
                             cookie_used = True
                         if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=tv;player_skip=configs,js"])
+                        cmd.extend(["--extractor-args", "youtube:player_client=web"])
                         out, err = await self._exec_cmd(*cmd, timeout=30)
                         if out:
                             info = _loads_bytes(out)
@@ -231,12 +235,13 @@ class TitanExtractor:
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
 
                     elif attempt == 3:
-                        method_used = "CLI Remote (EJS)"
+                        method_used = "CLI Standard (Web Client + Remote EJS)"
                         cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
                         if cookie: 
                             cmd.extend(["--cookies", cookie])
                             cookie_used = True
                         if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        cmd.extend(["--extractor-args", "youtube:player_client=web"])
                         out, err = await self._exec_cmd(*cmd, timeout=35)
                         if out:
                             info = _loads_bytes(out)
@@ -244,9 +249,11 @@ class TitanExtractor:
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
 
                     elif attempt == 4:
-                        method_used = "CLI Fallback (Android Client)"
-                        cookie_used = False # Force fallback without cookies
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--extractor-args", "youtube:player_client=android;player_skip=configs"]
+                        method_used = "CLI Fallback No-Cookies (Android Client + Remote EJS)"
+                        cookie_used = False # 🚀 طوارئ بدون كوكيز (نستخدم عميل اندرويد لانه بيعدي بدونها)
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
+                        if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        cmd.extend(["--extractor-args", "youtube:player_client=android"])
                         out, err = await self._exec_cmd(*cmd, timeout=30)
                         if out:
                             info = _loads_bytes(out)
@@ -254,9 +261,10 @@ class TitanExtractor:
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
 
                     else:
-                        method_used = "Final attempt - exhaustive (No-Cookies)"
+                        method_used = "Final attempt (No-Cookies + TV Client)"
                         cookie_used = False
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings"]
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
+                        cmd.extend(["--extractor-args", "youtube:player_client=tv"])
                         out, err = await self._exec_cmd(*cmd, timeout=35)
                         if out:
                             info = _loads_bytes(out)
@@ -268,7 +276,7 @@ class TitanExtractor:
 
                 logger.warning(f"⚠️ {method_used} Failed: {last_err.strip()[:200]}")
 
-                # Banning logic strictly applied only if cookie was actively used in the attempt
+                # منع حظر الكوكيز إلا لو تم استخدامها بالفعل وفشلت بسبب حماية حسابات
                 if cookie_used and cookie and ("Sign in to confirm" in last_err or "Sign in to confirm you're not a bot" in last_err):
                     await cookie_vault.report_failure(cookie)
 
@@ -279,7 +287,7 @@ class TitanExtractor:
 titan_core = TitanExtractor()
 
 # ============== FastAPI app & auth ==============
-app = FastAPI(title="TitanOS Enterprise Edge API", version="6.3.0-DirectCookie", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
+app = FastAPI(title="TitanOS Enterprise Edge API", version="6.5.0-Ultimate", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -314,7 +322,7 @@ async def shutdown_event():
 
 @app.get("/", tags=["System"])
 async def index():
-    return ORJSONResponse({"system": "TitanOS Edge", "status": "Operational", "mode": "Direct Cookie Engine"})
+    return ORJSONResponse({"system": "TitanOS Edge", "status": "Operational", "mode": "Ultimate JS/CFFI Bypass"})
 
 @app.get("/api/v1/extract", response_model=MediaResponse, tags=["Media"])
 async def extract_media(url: str = Query(...), audio_only: bool = Query(True), force_refresh: bool = Query(False), auth: str = Depends(verify_auth)):
@@ -382,4 +390,4 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8080")), loop="uvloop", http="httptools", workers=int(os.getenv("UVICORN_WORKERS", "1")))
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8080")), loop="uvloop", http="httptools", workers=int(os.getenv("UVICORN_WORKERS", "4")))
