@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 # إعدادات البيئة لتحسين الأداء ومنع استهلاك الرام في الكاش
 ENV PYTHONDONTWRITEBYTECODE=1
