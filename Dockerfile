@@ -28,3 +28,4 @@ EXPOSE 8080
 
 # تشغيل السيرفر بأقصى طاقة (4 عمال لـ 4 أنوية)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--loop", "uvloop", "--http", "httptools", "--workers", "4"]
+#.
