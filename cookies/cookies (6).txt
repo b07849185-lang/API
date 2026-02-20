@@ -1,0 +1,18 @@
+# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+.google.com	TRUE	/	TRUE	1784386325	AEC	AaJma5sdhUAGTKB5OfgVJAq7lz0YBs5Ot_2sc570mCpXNALMdCzhWcBM5II
+.google.com	TRUE	/	TRUE	1784386325	__Secure-BUCKET	CKoF
+accounts.google.com	FALSE	/	TRUE	1771426329	OTZ	8442172_48_48_171240_44_319500
+.google.com	TRUE	/	FALSE	1784386345	SEARCH_SAMESITE	CgQI-J8B
+.github.com	TRUE	/	TRUE	1800386131	_octo	GH1.1.388949137.1768850116
+.github.com	TRUE	/	TRUE	1784402120	GHCC	Required:1-Analytics:1-SocialMedia:1-Advertising:1
+github.com	FALSE	/	TRUE	1800386121	MicrosoftApplicationsTelemetryDeviceId	eaf7c5fc-9517-483e-8fe1-f3928daf5691
+github.com	FALSE	/	TRUE	1800386122	_device_id	61fb8aaad89933be5699d3b52741c6a0
+.microsoft.com	TRUE	/	TRUE	1800386123	MC1	GUID=d187a24e2a5d4a96a7a6e2144fdf33e1&HASH=d187&LV=202601&V=4&LU=1768850122224
+github.com	FALSE	/	TRUE	1776626126	saved_user_sessions	255545502%3Aom_O4c4F0GKe5kvgQrcgXzDGolqGFQMoEDtsNqDbAISWQ9l4
+github.com	FALSE	/	TRUE	1770059726	user_session	om_O4c4F0GKe5kvgQrcgXzDGolqGFQMoEDtsNqDbAISWQ9l4
+github.com	FALSE	/	TRUE	1770059726	__Host-user_session_same_site	om_O4c4F0GKe5kvgQrcgXzDGolqGFQMoEDtsNqDbAISWQ9l4
+.github.com	TRUE	/	TRUE	1800386126	logged_in	yes
+.github.com	TRUE	/	TRUE	1800386126	dotcom_user	q05861234-wq

@@ -1,0 +1,26 @@
+# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+.google.com	TRUE	/verify	TRUE	1783098336	SNID	AHDpxKmVCQ6iKDfUt6gyiigZQVrPvg1X4rJkqOX5_5A2cU4vLTukf1IuEiNwmYLtvyfjxZ9lCi0M-9DLYAVuTKoFee_4PW6obQ
+.instagram.com	TRUE	/	TRUE	1801847097	datr	OalWact-o5U__ORy1NElNMDc
+.instagram.com	TRUE	/	TRUE	1798823097	ig_did	FA5FD26B-255D-4353-B689-0A7D9207F961
+.google.com	TRUE	/	TRUE	1782839136	AEC	AaJma5sur1NJdd1kUlkPEuQ28aVW5vHN-ahxwydZNa221Sgeh_OuwP2ujto
+.google.com	TRUE	/	TRUE	1782839136	__Secure-BUCKET	CKUF
+.chromewebstore.google.com	TRUE	/	FALSE	1801847144	_ga	GA1.1.539715872.1767287144
+chromewebstore.google.com	FALSE	/	TRUE	1769879145	OTZ	8416386_48_48_171240_44_319500
+.chromewebstore.google.com	TRUE	/	FALSE	1801847159	_ga_KHZNC1Q6K0	GS2.1.s1767287143$o1$g1$t1767287158$j45$l0$h0
+.instagram.com	TRUE	/	TRUE	1767892790	dpr	3.684878349304199
+.instagram.com	TRUE	/	TRUE	1801847163	mid	aVapeAABAAGIpfuWfFGYDNaah7We
+.instagram.com	TRUE	/	TRUE	1801848001	csrftoken	96TogoiXsx9GKpmPxhlYBriaoBMDGl1k
+.instagram.com	TRUE	/	TRUE	1775064001	ds_user_id	63241259886
+.instagram.com	TRUE	/	TRUE	1798823282	sessionid	63241259886%3AMrqYcKYL2Lzcz2%3A16%3AAYigOSgRT2-gqxVb3pFwdgnSl9IA2USNvTbrOsJp5w
+.instagram.com	TRUE	/	TRUE	1801847443	ps_l	1
+.instagram.com	TRUE	/	TRUE	1801847443	ps_n	1
+.instagram.com	TRUE	/	TRUE	1767892790	wd	294x564
+.doubleclick.net	TRUE	/	TRUE	1767288353	test_cookie	CheckForPermission
+.facebook.com	TRUE	/	TRUE	1775063455	fr	02d7YEwdNeyWY64AT.AWf5q61g29MuHoGouOFoMltiiT0Uu-3E4KDMKJlE7eNxPeSiEcY.BpVqqf..AAA.0.0.BpVqqf.AWcjPqqeBYRApdBT15JKyWi4OEI
+.google.com	TRUE	/	TRUE	1767288285	__Secure-STRP	AD6DogtnzJhXpKEARfzhfE7thSoZMIXR6fRgekaRxPUt4N_Wn3ZgoivDHHs0txmPGm37yY_bN3P2dHH6i-V7DuHWLIVMFYqOvvAi
+www.google.com	FALSE	/	FALSE	1767288586	DV	4zJNzmkDHGsacJwiBMaOV265WSmptxk
+.google.com	TRUE	/	TRUE	1783098336	NID	527=k-ien5_tKW06RCSCFluc_9ec2kv3V6nOQv9JnnsEe6I4TF_7VF9Pxgfv7ksX3zvEZKmH0S0hoDniek7A6kpGfNMTs_wVaBz9TqfjJKDZY45cn18Fmn0zCV8NS06gv8ZXOumd8JYBboyoLpmCxaGajeb8N9XZa9ssqgei8rEFYV-Ib8aIEx6UwfBXz0ynjmU1rBigfLKas--KBaz1nKe6QDp8tP-NmPggQZafQenvOol-z4MTtRFkKOG_CLE1UsnBV2Wn7MphZNzSJ-rKpj4HKA
+.instagram.com	TRUE	/	TRUE	0	rur	"NHA\05463241259886\0541798824001:01fe268a1da0e3e2f0fdcc7ce504dad1b4176ab87aa3856a2229342aed0afa310a9d35a0"
