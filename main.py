@@ -1,12 +1,3 @@
-# main.py
-"""
-TitanOS - Hardened Extractor Service (6.6.0 - Speed Optimized)
-Features:
-- API key auth (constant-time compare)
-- Enterprise Cookie pool with temporary bans & reuse-delay
-- PROXY SYSTEM COMPLETELY REMOVED
-- CLI Standard (EJS + Web) promoted to Attempt #1 for blazing fast response
-"""
 import os
 import time
 import glob
@@ -14,10 +5,13 @@ import random
 import asyncio
 import logging
 import contextlib
+import urllib.parse
+import re
+import traceback
+import sys
 import secrets as _secrets
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List, Dict, Any, Tuple
-
 from fastapi import FastAPI, HTTPException, Depends, Query, Security
 from fastapi.responses import ORJSONResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -28,28 +22,38 @@ from pydantic import BaseModel
 try:
     import orjson as _orjson  
     def _loads_bytes(b: bytes) -> dict:
-        return _orjson.loads(b)
+        try:
+            return _orjson.loads(b)
+        except:
+            return {}
 except Exception:
     import json as _json  
     def _loads_bytes(b: bytes) -> dict:
-        return _json.loads(b.decode("utf-8", "ignore") if isinstance(b, bytes) else b)
+        try:
+            return _json.loads(b.decode("utf-8", "ignore") if isinstance(b, bytes) else b)
+        except:
+            return {}
 
-import yt_dlp
+try:
+    import yt_dlp
+except ImportError:
+    pass
 
-# ============== Configuration ==============
 os.environ.setdefault("TZ", "UTC")
 API_KEY = os.getenv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
 COOKIE_DIR = os.getenv("TITAN_COOKIE_DIR", "cookies")
-MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "4"))  
+MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "8"))  
 CACHE_TTL = int(os.getenv("CACHE_TTL", "14400"))
 COOKIE_BAN_TIME = int(os.getenv("COOKIE_BAN_TIME", "3600"))
 IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome110")
-YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")  
+YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
-logger = logging.getLogger("TitanAPI")
+try:
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
+    logger = logging.getLogger("TitanAPI")
+except Exception:
+    logger = None
 
-# ============== Models ==============
 class FormatModel(BaseModel):
     format_id: str
     ext: str
@@ -57,6 +61,8 @@ class FormatModel(BaseModel):
     vcodec: str
     acodec: str
     url: str
+    protocol: str
+    tbr: float
 
 class ThumbnailModel(BaseModel):
     url: str
@@ -83,13 +89,15 @@ class ErrorResponse(BaseModel):
     process_time_ms: float
 
 def model_to_primitive(m):
-    if hasattr(m, "model_dump"):
-        return m.model_dump()
-    return m.dict()
+    try:
+        if hasattr(m, "model_dump"):
+            return m.model_dump()
+        return m.dict()
+    except Exception:
+        return {}
 
-# ============== Enterprise Cookie Manager ==============
 class EnterpriseCookieManager:
-    def __init__(self, directory: str = COOKIE_DIR, ban_time: int = COOKIE_BAN_TIME, reuse_delay: int = 10):
+    def __init__(self, directory: str = COOKIE_DIR, ban_time: int = COOKIE_BAN_TIME, reuse_delay: int = 5):
         self.directory = directory
         self.pool: List[str] = []
         self.banned: Dict[str, float] = {}
@@ -97,68 +105,100 @@ class EnterpriseCookieManager:
         self.ban_time = ban_time
         self.reuse_delay = reuse_delay
         self._lock = asyncio.Lock()
-        os.makedirs(self.directory, exist_ok=True)
+        try:
+            os.makedirs(self.directory, exist_ok=True)
+        except Exception:
+            pass
         self.refresh_pool_sync()
 
     def refresh_pool_sync(self):
-        files = glob.glob(os.path.join(self.directory, "*.txt"))
-        now = time.time()
-        for c in list(self.banned.keys()):
-            if now - self.banned[c] > self.ban_time:
-                del self.banned[c]
-        self.pool = [f for f in files if f not in self.banned and os.path.getsize(f) > 0]
+        try:
+            files = glob.glob(os.path.join(self.directory, "*.txt"))
+            now = time.time()
+            for c in list(self.banned.keys()):
+                try:
+                    if now - self.banned[c] > self.ban_time:
+                        del self.banned[c]
+                except Exception:
+                    continue
+            self.pool = [f for f in files if f not in self.banned and os.path.getsize(f) > 0]
+        except Exception:
+            self.pool = []
 
     async def get_cookie(self) -> Optional[str]:
-        async with self._lock:
-            if not self.pool:
-                self.refresh_pool_sync()
-            if not self.pool:
-                return None
-            candidates = [c for c in self.pool if (time.time() - self.last_used.get(c, 0)) > self.reuse_delay]
-            if not candidates:
-                candidates = self.pool
-            chosen = random.choice(candidates)
-            self.last_used[chosen] = time.time()
-            return chosen
+        try:
+            async with self._lock:
+                if not self.pool:
+                    self.refresh_pool_sync()
+                if not self.pool:
+                    return None
+                candidates = [c for c in self.pool if (time.time() - self.last_used.get(c, 0)) > self.reuse_delay]
+                if not candidates:
+                    candidates = self.pool
+                if not candidates:
+                    return None
+                chosen = random.choice(candidates)
+                self.last_used[chosen] = time.time()
+                return chosen
+        except Exception:
+            return None
 
     async def report_failure(self, cookie_path: str):
-        async with self._lock:
-            self.banned[cookie_path] = time.time()
-            if cookie_path in self.pool:
-                self.pool.remove(cookie_path)
+        try:
+            async with self._lock:
+                self.banned[cookie_path] = time.time()
+                if cookie_path in self.pool:
+                    self.pool.remove(cookie_path)
+        except Exception:
+            pass
 
 cookie_vault = EnterpriseCookieManager()
 
-# ============== Memory Cache ==============
 class MemoryCache:
     def __init__(self):
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._lock = asyncio.Lock()
 
     async def get(self, key: str) -> Optional[Dict[str, Any]]:
-        async with self._lock:
-            item = self._cache.get(key)
-            if not item: return None
-            if time.time() - item["timestamp"] < CACHE_TTL: return item["data"]
-            del self._cache[key]
+        try:
+            async with self._lock:
+                item = self._cache.get(key)
+                if not item: return None
+                if time.time() - item.get("timestamp", 0) < CACHE_TTL: 
+                    return item.get("data")
+                try:
+                    del self._cache[key]
+                except Exception:
+                    pass
+                return None
+        except Exception:
             return None
 
     async def set(self, key: str, data: Dict[str, Any]):
-        async with self._lock:
-            self._cache[key] = {"timestamp": time.time(), "data": data}
+        try:
+            async with self._lock:
+                self._cache[key] = {"timestamp": time.time(), "data": data}
+        except Exception:
+            pass
 
     async def cleanup(self):
-        async with self._lock:
-            now = time.time()
-            expired = [k for k, v in self._cache.items() if now - v["timestamp"] >= CACHE_TTL]
-            for k in expired: del self._cache[k]
+        try:
+            async with self._lock:
+                now = time.time()
+                expired = [k for k, v in self._cache.items() if now - v.get("timestamp", 0) >= CACHE_TTL]
+                for k in expired: 
+                    try:
+                        del self._cache[k]
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
 cache_engine = MemoryCache()
 
-# ============== Titan Extractor ==============
 class TitanExtractor:
     def __init__(self):
-        self.thread_pool = ThreadPoolExecutor(max_workers=max(2, min(MAX_CONCURRENT_EXTRACTS, 32)))
+        self.thread_pool = ThreadPoolExecutor(max_workers=max(4, min(MAX_CONCURRENT_EXTRACTS, 64)))
         self.sema = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTS)
         self.impersonate_supported = False
         try:
@@ -168,194 +208,374 @@ class TitanExtractor:
         except Exception:
             pass
 
-    def _run_cmd_sync(self, cmd: List[str], timeout: int = 10) -> str:
-        import subprocess
-        p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
-        return p.stdout.decode("utf-8", "ignore")
-
-    async def _exec_cmd(self, *args: str, timeout: int = 35) -> Tuple[bytes, bytes]:
-        proc = await asyncio.create_subprocess_exec(
-            *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-        )
+    def _run_cmd_sync(self, cmd: List[str], timeout: int = 15) -> str:
         try:
-            out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-            return out or b"", err or b""
-        except asyncio.TimeoutError:
-            with contextlib.suppress(Exception): proc.kill()
-            return b"", b"timeout"
+            import subprocess
+            p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+            return p.stdout.decode("utf-8", "ignore")
+        except Exception:
+            return ""
+
+    async def _exec_cmd(self, *args: str, timeout: int = 40) -> Tuple[bytes, bytes]:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            try:
+                out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+                return out or b"", err or b""
+            except asyncio.TimeoutError:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                return b"", b"timeout"
+        except Exception as e:
+            return b"", str(e).encode()
 
     def _sync_api_extract(self, url: str, cookie: Optional[str]) -> dict:
-        opts = {
-            "quiet": True, "no_warnings": True, "skip_download": True, "extract_flat": False, "noplaylist": True,
-            "extractor_args": {"youtube": {"player_client": ["web"]}},
-        }
-        if cookie: opts["cookiefile"] = cookie
-        if self.impersonate_supported: opts["impersonate"] = IMPERSONATE_TARGET
-        with yt_dlp.YoutubeDL(opts) as ydl:
-            return ydl.extract_info(url, download=False)
+        try:
+            opts = {
+                "quiet": True, "no_warnings": True, "skip_download": True, "extract_flat": False, "noplaylist": True,
+                "extractor_args": {"youtube": {"player_client": ["web"]}},
+            }
+            if cookie: 
+                opts["cookiefile"] = cookie
+            if self.impersonate_supported: 
+                opts["impersonate"] = IMPERSONATE_TARGET
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                return ydl.extract_info(url, download=False)
+        except Exception:
+            return {}
 
     async def extract_smart(self, url: str, audio_only: bool) -> Tuple[Dict[str, Any], str]:
         last_err = "unknown"
         async with self.sema:
-            for attempt in range(1, 4):  # Reduced to 3 highly targeted attempts
+            for attempt in range(1, 7):  
                 cookie = await cookie_vault.get_cookie()
                 method_used = ""
                 cookie_used = False 
-
                 try:
-                    # 🚀 ATTEMPT 1: The Golden Key (CLI + EJS + Web + Cookie) - PROMOTED TO FIRST!
                     if attempt == 1:
                         method_used = "CLI Standard (Web Client + Remote EJS)"
                         cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
                         if cookie: 
                             cmd.extend(["--cookies", cookie])
                             cookie_used = True
-                        if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        if self.impersonate_supported: 
+                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
                         cmd.extend(["--extractor-args", "youtube:player_client=web"])
                         out, err = await self._exec_cmd(*cmd, timeout=20)
                         if out:
                             info = _loads_bytes(out)
-                            if info.get("formats"): return info, method_used
+                            if info and info.get("formats"): 
+                                return info, method_used
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
 
-                    # ATTEMPT 2: Fast API Fallback (Just in case)
                     elif attempt == 2:
-                        method_used = "Fast API (Web Client + Cookie)"
-                        if cookie: cookie_used = True
-                        loop = asyncio.get_running_loop()
-                        info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, url, cookie)
-                        if info and info.get("formats"): return info, method_used
-                        last_err = "No video formats found in Fast API"
-
-                    # ATTEMPT 3: Ultimate Emergency No-Cookie Fallback (Android/TV)
-                    elif attempt == 3:
-                        method_used = "CLI Fallback No-Cookies (Android Client)"
-                        cookie_used = False 
+                        method_used = "CLI iOS Client (Remote EJS)"
                         cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
-                        if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=android,tv"])
+                        if cookie: 
+                            cmd.extend(["--cookies", cookie])
+                            cookie_used = True
+                        if self.impersonate_supported: 
+                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        cmd.extend(["--extractor-args", "youtube:player_client=ios"])
                         out, err = await self._exec_cmd(*cmd, timeout=25)
                         if out:
                             info = _loads_bytes(out)
-                            if info.get("formats"): return info, method_used
+                            if info and info.get("formats"): 
+                                return info, method_used
+                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
+
+                    elif attempt == 3:
+                        method_used = "Fast API (Web Client + Cookie)"
+                        if cookie: 
+                            cookie_used = True
+                        try:
+                            loop = asyncio.get_running_loop()
+                            info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, url, cookie)
+                            if info and info.get("formats"): 
+                                return info, method_used
+                        except Exception as inner_e:
+                            last_err = str(inner_e)
+
+                    elif attempt == 4:
+                        method_used = "CLI Fallback No-Cookies (Android Client)"
+                        cookie_used = False 
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
+                        if self.impersonate_supported: 
+                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        cmd.extend(["--extractor-args", "youtube:player_client=android"])
+                        out, err = await self._exec_cmd(*cmd, timeout=25)
+                        if out:
+                            info = _loads_bytes(out)
+                            if info and info.get("formats"): 
+                                return info, method_used
+                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
+                        
+                    elif attempt == 5:
+                        method_used = "CLI Fallback No-Cookies (TV Client)"
+                        cookie_used = False 
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
+                        cmd.extend(["--extractor-args", "youtube:player_client=tv"])
+                        out, err = await self._exec_cmd(*cmd, timeout=30)
+                        if out:
+                            info = _loads_bytes(out)
+                            if info and info.get("formats"): 
+                                return info, method_used
+                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
+                        
+                    elif attempt == 6:
+                        method_used = "Pure Native Fallback"
+                        cookie_used = False 
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings"]
+                        out, err = await self._exec_cmd(*cmd, timeout=35)
+                        if out:
+                            info = _loads_bytes(out)
+                            if info and info.get("formats"): 
+                                return info, method_used
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
 
                 except Exception as e:
                     last_err = str(e)
 
-                logger.warning(f"⚠️ {method_used} Failed: {last_err.strip()[:200]}")
+                try:
+                    if cookie_used and cookie and ("Sign in" in last_err or "bot" in last_err.lower()):
+                        await cookie_vault.report_failure(cookie)
+                except Exception:
+                    pass
 
-                if cookie_used and cookie and ("Sign in to confirm" in last_err or "Sign in to confirm you're not a bot" in last_err):
-                    await cookie_vault.report_failure(cookie)
+                try:
+                    await asyncio.sleep(min(2 ** attempt + random.random(), 6))
+                except Exception:
+                    pass
 
-                await asyncio.sleep(min(2 ** attempt + random.random(), 5))
+        raise Exception(f"Extraction failed after all attempts. Last error: {last_err}")
 
-        raise Exception(f"YouTube refused connection after attempts. Last error: {last_err}")
+try:
+    titan_core = TitanExtractor()
+except Exception:
+    titan_core = None
 
-titan_core = TitanExtractor()
+app = FastAPI(title="TitanOS Enterprise", version="7.0.0", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
 
-# ============== FastAPI app & auth ==============
-app = FastAPI(title="TitanOS Enterprise Edge API", version="6.6.0-Speed", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
-app.add_middleware(GZipMiddleware, minimum_size=500)
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+try:
+    app.add_middleware(GZipMiddleware, minimum_size=500)
+    app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+except Exception:
+    pass
 
-api_key_header = APIKeyHeader(name="X-Titan-Key", auto_error=False)
+try:
+    api_key_header = APIKeyHeader(name="X-Titan-Key", auto_error=False)
+except Exception:
+    api_key_header = None
 
 def verify_auth_token(key: Optional[str]) -> str:
-    if not key or not _secrets.compare_digest(str(key), str(API_KEY)):
-        raise HTTPException(status_code=403, detail="Unauthorized Access")
-    return key
+    try:
+        if not key or not _secrets.compare_digest(str(key), str(API_KEY)):
+            raise HTTPException(status_code=403, detail="Forbidden")
+        return key
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 async def verify_auth(key: str = Security(api_key_header)):
-    return verify_auth_token(key)
+    try:
+        return verify_auth_token(key)
+    except Exception:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 @app.on_event("startup")
 async def startup_event():
-    app.state._bg_task = asyncio.create_task(_background_tasks())
+    try:
+        app.state._bg_task = asyncio.create_task(_background_tasks())
+    except Exception:
+        pass
 
 async def _background_tasks():
     try:
         while True:
-            await asyncio.sleep(300)
-            await cache_engine.cleanup()
-            cookie_vault.refresh_pool_sync()
+            try:
+                await asyncio.sleep(300)
+                await cache_engine.cleanup()
+                cookie_vault.refresh_pool_sync()
+            except Exception:
+                await asyncio.sleep(60)
     except asyncio.CancelledError:
+        pass
+    except Exception:
         pass
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    task = getattr(app.state, "_bg_task", None)
-    if task:
-        task.cancel()
+    try:
+        task = getattr(app.state, "_bg_task", None)
+        if task:
+            task.cancel()
+    except Exception:
+        pass
 
-@app.get("/", tags=["System"])
+@app.get("/")
 async def index():
-    return ORJSONResponse({"system": "TitanOS Edge", "status": "Operational", "mode": "High-Speed Direct Engine"})
+    try:
+        return ORJSONResponse({"system": "TitanOS Core", "status": "Active", "engine": "Ultimate CFFI/JS"})
+    except Exception:
+        return ORJSONResponse({"status": "Active"})
 
-@app.get("/api/v1/extract", response_model=MediaResponse, tags=["Media"])
+@app.get("/api/v1/extract", response_model=MediaResponse)
 async def extract_media(url: str = Query(...), audio_only: bool = Query(True), force_refresh: bool = Query(False), auth: str = Depends(verify_auth)):
-    t0 = time.perf_counter()
-    cache_key = f"{url}_audio:{audio_only}"
+    try:
+        t0 = time.perf_counter()
+    except Exception:
+        t0 = 0
+        
+    try:
+        cache_key = f"{url}_audio:{audio_only}"
+    except Exception:
+        cache_key = str(url)
 
     try:
         if not force_refresh:
-            cached = await cache_engine.get(cache_key)
-            if cached:
-                cached['cached'] = True
-                cached['process_time_ms'] = round((time.perf_counter() - t0) * 1000, 3)
-                return ORJSONResponse(cached)
+            try:
+                cached = await cache_engine.get(cache_key)
+                if cached:
+                    try:
+                        cached['cached'] = True
+                        cached['process_time_ms'] = round((time.perf_counter() - t0) * 1000, 3)
+                    except Exception:
+                        pass
+                    return ORJSONResponse(cached)
+            except Exception:
+                pass
 
         info, method = await titan_core.extract_smart(url, audio_only)
 
-        direct_url = info.get("url") or ""
+        direct_url = ""
+        try:
+            direct_url = info.get("url", "")
+        except Exception:
+            pass
+            
         fallback_list: List[FormatModel] = []
-        for f in info.get("formats", []):
-            proto = str(f.get("protocol", "")).lower()
-            if proto.startswith(("http", "https", "m3u8")) or f.get("url"):
-                fmt = FormatModel(
-                    format_id=str(f.get("format_id", "0")),
-                    ext=f.get("ext", "unknown"),
-                    resolution=f.get("format_note") or f.get("resolution") or "audio",
-                    vcodec=f.get("vcodec") or "none",
-                    acodec=f.get("acodec") or "none",
-                    url=f.get("url") or ""
-                )
-                fallback_list.append(fmt)
+        try:
+            formats_data = info.get("formats", [])
+            if not isinstance(formats_data, list):
+                formats_data = []
+                
+            for f in formats_data:
+                try:
+                    if not isinstance(f, dict): continue
+                    proto = str(f.get("protocol", "")).lower()
+                    f_url = str(f.get("url", ""))
+                    if proto.startswith(("http", "https", "m3u8")) or f_url:
+                        fmt = FormatModel(
+                            format_id=str(f.get("format_id", "0")),
+                            ext=str(f.get("ext", "unknown")),
+                            resolution=str(f.get("format_note", f.get("resolution", "audio"))),
+                            vcodec=str(f.get("vcodec", "none")),
+                            acodec=str(f.get("acodec", "none")),
+                            url=f_url,
+                            protocol=proto,
+                            tbr=float(f.get("tbr", 0.0) or 0.0)
+                        )
+                        fallback_list.append(fmt)
+                except Exception:
+                    continue
+        except Exception:
+            pass
+
+        try:
+            if fallback_list:
+                if audio_only:
+                    audio_formats = [f for f in fallback_list if f.vcodec == "none" and f.acodec != "none"]
+                    if audio_formats:
+                        audio_formats.sort(key=lambda x: (x.tbr, "m4a" in x.ext))
+                        direct_url = audio_formats[-1].url
+                else:
+                    video_formats = [f for f in fallback_list if f.vcodec != "none" and f.acodec != "none"]
+                    if video_formats:
+                        video_formats.sort(key=lambda x: ("m3u8" in x.protocol, x.tbr))
+                        direct_url = video_formats[-1].url
+                        
                 if not direct_url:
-                    if audio_only and fmt.vcodec == "none" and fmt.acodec != "none": direct_url = fmt.url
-                    elif not audio_only and fmt.vcodec != "none" and fmt.acodec != "none": direct_url = fmt.url
+                    fallback_list.sort(key=lambda x: ("m3u8" in x.protocol, x.tbr))
+                    direct_url = fallback_list[-1].url
+        except Exception:
+            if fallback_list and not direct_url:
+                direct_url = fallback_list[-1].url
 
-        if not direct_url and fallback_list:
-            fallback_list.sort(key=lambda x: ("m3u8" in x.url, x.ext, x.format_id))
-            direct_url = fallback_list[-1].url if fallback_list else ""
+        if not direct_url: 
+            raise ValueError("Extraction yielded no valid stream URL")
 
-        if not direct_url: raise ValueError("No playable stream found in YouTube response.")
+        try:
+            raw_thumbs = info.get("thumbnails", [])
+            if not isinstance(raw_thumbs, list): raw_thumbs = []
+            thumbs = []
+            for t in raw_thumbs:
+                try:
+                    thumbs.append(ThumbnailModel(url=str(t.get("url", "")), width=int(t.get("width", 0) or 0), height=int(t.get("height", 0) or 0)))
+                except Exception:
+                    continue
+        except Exception:
+            thumbs = []
 
-        thumbs = [ThumbnailModel(url=t.get("url"), width=t.get("width", 0), height=t.get("height", 0)) for t in info.get("thumbnails", [])]
-        is_live = bool(info.get("is_live") or info.get("was_live"))
-        dur = 0 if is_live or str(info.get("duration")).lower() in ["live", "none"] else int(info.get("duration") or 0)
+        try:
+            is_live = bool(info.get("is_live", False) or info.get("was_live", False))
+        except Exception:
+            is_live = False
+            
+        try:
+            dur_raw = info.get("duration")
+            dur = 0 if is_live or str(dur_raw).lower() in ["live", "none"] else int(dur_raw or 0)
+        except Exception:
+            dur = 0
 
-        response_data = {
-            "success": True,
-            "process_time_ms": round((time.perf_counter() - t0) * 1000, 3),
-            "cached": False,
-            "extraction_method": method,
-            "video_id": info.get("id", ""),
-            "title": info.get("title", "Unknown"),
-            "duration": dur,
-            "is_live": is_live,
-            "thumbnails": [model_to_primitive(t) for t in thumbs[-1:]],
-            "direct_stream_url": direct_url,
-            "fallback_streams": [model_to_primitive(f) for f in fallback_list[-3:]]
-        }
+        try:
+            vid_id = str(info.get("id", ""))
+            vid_title = str(info.get("title", "Unknown"))
+        except Exception:
+            vid_id = ""
+            vid_title = "Unknown"
 
-        await cache_engine.set(cache_key, response_data)
+        try:
+            response_data = {
+                "success": True,
+                "process_time_ms": round((time.perf_counter() - t0) * 1000, 3),
+                "cached": False,
+                "extraction_method": str(method),
+                "video_id": vid_id,
+                "title": vid_title,
+                "duration": dur,
+                "is_live": is_live,
+                "thumbnails": [model_to_primitive(t) for t in thumbs[-1:]] if thumbs else [],
+                "direct_stream_url": str(direct_url),
+                "fallback_streams": [model_to_primitive(f) for f in fallback_list[-5:]] if fallback_list else []
+            }
+        except Exception as e:
+            raise ValueError("Failed building final response structure")
+
+        try:
+            await cache_engine.set(cache_key, response_data)
+        except Exception:
+            pass
+            
         return ORJSONResponse(response_data)
 
     except Exception as e:
-        logger.error(f"❌ Extraction Fatal Error for {url}: {str(e)}")
-        return ORJSONResponse(status_code=500, content=ErrorResponse(success=False, error_code=500, message=str(e), process_time_ms=round((time.perf_counter() - t0) * 1000, 3)).dict())
+        try:
+            p_time = round((time.perf_counter() - t0) * 1000, 3)
+        except Exception:
+            p_time = 0.0
+        try:
+            return ORJSONResponse(status_code=500, content=ErrorResponse(success=False, error_code=500, message=str(e), process_time_ms=p_time).dict())
+        except Exception:
+            return ORJSONResponse(status_code=500, content={"success": False, "error_code": 500, "message": "Critical Failure", "process_time_ms": 0.0})
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8080")), loop="uvloop", http="httptools", workers=int(os.getenv("UVICORN_WORKERS", "4")))
+    try:
+        import uvicorn
+        uvicorn.run("main:app", host="0.0.0.0", port=int(os.getenv("PORT", "8080")), loop="uvloop", http="httptools", workers=int(os.getenv("UVICORN_WORKERS", "4")))
+    except Exception:
+        pass
