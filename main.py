@@ -4,8 +4,8 @@ import glob
 import random
 import asyncio
 import logging
-from concurrent.futures import ThreadPoolExecutor
-from typing import Optional, List, Dict, Any
+import contextlib
+from typing import Optional, List, Dict, Any, Tuple
 
 from fastapi import FastAPI, HTTPException, Request, Depends, Query, Security
 from fastapi.responses import ORJSONResponse
@@ -14,11 +14,13 @@ from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 
-import yt_dlp
+try:
+    import orjson
+except ImportError:
+    import json as orjson
 
 os.environ["TZ"] = "UTC"
 API_KEY = os.getenv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
-MAX_WORKERS = int(os.getenv("MAX_THREADS", "100")) 
 CACHE_TTL = 14400  
 
 logging.basicConfig(
@@ -125,70 +127,87 @@ class MemoryCache:
 
 cache_engine = MemoryCache()
 
-class YtDlpLogger:
-    def debug(self, msg): pass
-    def warning(self, msg): pass
-    def error(self, msg): logger.error(f"yt-dlp Core Error: {msg}")
-
 class TitanExtractor:
     def __init__(self):
-        self.executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="Titan")
+        # We check if curl_cffi is available for impersonation (as in AnnieXMedia)
+        try:
+            import curl_cffi
+            self.impersonate = True
+        except ImportError:
+            self.impersonate = False
 
-    def _build_config(self, audio_only: bool, cookie_path: Optional[str] = None) -> dict:
-        config = {
-            'quiet': True,
-            'no_warnings': True,
-            'skip_download': True,
-            'extract_flat': False,
-            'noplaylist': True,
-            'logger': YtDlpLogger(),
-            
-            'check_formats': True,  
-            'youtube_include_dash_manifest': False,
-            'youtube_include_hls_manifest': False,
-            
-            'format': 'bestaudio/best' if audio_only else 'best',
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['android', 'ios', 'web'],
-                    'player_skip': ['js', 'configs', 'webpage']
-                }
-            }
-        }
-        if cookie_path and os.path.exists(cookie_path):
-            config['cookiefile'] = cookie_path
-        return config
-
-    def _sync_extract(self, url: str, audio_only: bool, retries: int = 3) -> dict:
-        last_err = None
-        for attempt in range(retries):
-            cookie = cookie_vault.get_cookie()
-            config = self._build_config(audio_only, cookie)
-            
-            try:
-                with yt_dlp.YoutubeDL(config) as ydl:
-                    info = ydl.extract_info(url, download=False)
-                    if info:
-                        return info
-            except Exception as e:
-                last_err = str(e)
-                logger.warning(f"Attempt {attempt+1}/{retries} failed using cookie {cookie}: {last_err}")
-                if cookie:
-                    cookie_vault.report_failure(cookie)
-                time.sleep(1) 
-                
-        raise Exception(f"يوتيوب يرفض الاتصال بعد تجربة عدة حسابات. السبب: {last_err}")
+    async def _exec_cmd(self, *args: str, timeout: int = 20) -> Tuple[bytes, bytes]:
+        """Runs yt-dlp via asyncio subprocess for non-blocking extraction."""
+        proc = await asyncio.create_subprocess_exec(
+            *args, 
+            stdout=asyncio.subprocess.PIPE, 
+            stderr=asyncio.subprocess.PIPE
+        )
+        try:
+            out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+            return out, err
+        except asyncio.TimeoutError:
+            with contextlib.suppress(Exception):
+                proc.kill()
+            return b"", b"timeout"
 
     async def extract_smart(self, url: str, audio_only: bool) -> Dict[str, Any]:
-        loop = asyncio.get_running_loop()
-        return await loop.run_in_executor(self.executor, self._sync_extract, url, audio_only, 3)
+        last_err = ""
+        
+        # 3 محاولات استخراج كما في كود AnnieXMedia
+        for attempt in range(1, 4):
+            cookie = cookie_vault.get_cookie()
+            
+            # بناء الأمر الأساسي
+            cmd = [
+                "yt-dlp", 
+                "--dump-json", 
+                url, 
+                "--no-warnings", 
+                "--socket-timeout", "10",
+                "--force-ipv4"
+            ]
+
+            if cookie:
+                cmd.extend(["--cookies", cookie])
+            
+            if self.impersonate:
+                cmd.extend(["--impersonate", "chrome"])
+
+            # استراتيجية التخطي التصاعدية (Fallback Strategy)
+            if attempt == 2:
+                # المحاولة الثانية: استخدام مكونات EJS لمعالجة أخطاء الـ Player
+                cmd.extend(["--remote-components", "ejs:github"])
+            elif attempt == 3:
+                # المحاولة الثالثة: محاكاة أندرويد بالكامل
+                cmd.extend(["--extractor-args", "youtube:player_client=android,web;player_skip=js,configs,webpage"])
+
+            out, err = await self._exec_cmd(*cmd, timeout=20)
+
+            if out:
+                try:
+                    info = orjson.loads(out)
+                    if info.get("id"):
+                        return info
+                except Exception as e:
+                    last_err = f"JSON Parse Error: {e}"
+            else:
+                err_text = err.decode('utf-8', 'ignore') if err else "Unknown Error"
+                last_err = err_text
+                logger.warning(f"Attempt {attempt}/3 failed using cookie {cookie}: {last_err.strip()}")
+
+            # إذا فشلنا، نبلغ عن الكوكيز ونتحرك للمحاولة التالية
+            if cookie:
+                cookie_vault.report_failure(cookie)
+            await asyncio.sleep(1) 
+
+        raise Exception(f"يوتيوب يرفض الاتصال بعد تجربة عدة حسابات. السبب الأخير: {last_err}")
 
 titan_core = TitanExtractor()
 
 app = FastAPI(
     title="TitanOS Enterprise Media API",
-    version="5.1.0",
+    version="5.2.0-Robust",
     default_response_class=ORJSONResponse,
     docs_url=None,
     redoc_url=None
@@ -222,7 +241,7 @@ async def background_tasks():
 
 @app.get("/", tags=["System"])
 async def index():
-    return ORJSONResponse({"system": "TitanOS Core", "status": "Operational", "mode": "Turbo Verified"})
+    return ORJSONResponse({"system": "TitanOS Core", "status": "Operational", "mode": "Robust Async Subprocess"})
 
 @app.get("/api/v1/extract", response_model=MediaResponse, tags=["Media"])
 async def extract_media(
@@ -242,6 +261,7 @@ async def extract_media(
                 cached_data['process_time_ms'] = round((time.perf_counter() - t0) * 1000, 3)
                 return ORJSONResponse(cached_data)
 
+        # استدعاء أسلوب Subprocess القوي
         info = await titan_core.extract_smart(url, audio_only)
 
         direct_url = info.get("url")
@@ -249,7 +269,7 @@ async def extract_media(
         
         for f in info.get("formats", []):
             protocol = str(f.get("protocol", "")).lower()
-            if protocol.startswith(("http", "m3u8")):
+            if protocol.startswith(("http", "https", "m3u8")):
                 fmt_obj = FormatModel(
                     format_id=str(f.get("format_id", "0")),
                     ext=f.get("ext", "unknown"),
@@ -260,10 +280,11 @@ async def extract_media(
                 )
                 fallback_list.append(fmt_obj)
                 
+                # التقاط أفضل رابط بناءً على طلب المستخدم (صوت أم فيديو)
                 if not direct_url:
                     if audio_only and fmt_obj.vcodec == "none" and fmt_obj.acodec != "none":
                         direct_url = fmt_obj.url
-                    elif not audio_only and fmt_obj.vcodec != "none":
+                    elif not audio_only and fmt_obj.vcodec != "none" and fmt_obj.acodec != "none":
                         direct_url = fmt_obj.url
 
         if not direct_url and fallback_list:
@@ -274,14 +295,18 @@ async def extract_media(
 
         thumbs = [ThumbnailModel(url=t.get("url"), width=t.get("width", 0), height=t.get("height", 0)) for t in info.get("thumbnails", [])]
 
+        is_live = info.get("is_live") or info.get("was_live") or False
+        dur_str = info.get("duration")
+        dur = 0 if is_live or str(dur_str).lower() in ["live", "none"] else int(dur_str or 0)
+
         response_data = {
             "success": True,
             "process_time_ms": round((time.perf_counter() - t0) * 1000, 3),
             "cached": False,
             "video_id": info.get("id", ""),
             "title": info.get("title", "Unknown"),
-            "duration": info.get("duration") or 0,
-            "is_live": info.get("is_live") or info.get("was_live") or False,
+            "duration": dur,
+            "is_live": is_live,
             "thumbnails": [t.model_dump() for t in thumbs[-1:]], 
             "direct_stream_url": direct_url,
             "fallback_streams": [f.model_dump() for f in fallback_list[-3:]] 
