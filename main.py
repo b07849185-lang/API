@@ -1,13 +1,12 @@
-# main.py
 """
-TitanOS - hardened extractor service
+TitanOS - hardened extractor service (2026 Gold Release)
 Features:
 - API key auth (constant-time compare)
 - Cookie pool with temporary bans & reuse-delay
 - Proxy pool with rotation, per-proxy cooldown & bans
 - Multi-strategy yt-dlp extraction (API, CLI, remote, no-cookies)
 - Backoff, jitter, rate-limiting, reduced default concurrency
-- Safe defaults for containers: single uvicorn worker by default
+- Smart Bypassing: iOS/Android clients, Webpage skip
 """
 import os
 import time
@@ -43,14 +42,15 @@ import yt_dlp  # requires yt-dlp installed in image
 os.environ.setdefault("TZ", "UTC")
 API_KEY = os.getenv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
 COOKIE_DIR = os.getenv("TITAN_COOKIE_DIR", "cookies")
-PROXY_FILE = os.getenv("TITAN_PROXY_FILE", "proxies.txt")  # optional: one proxy per line (http://user:pass@host:port)
-MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "2"))  # safe default low concurrency
+PROXY_FILE = os.getenv("TITAN_PROXY_FILE", "proxies.txt")  
+MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "4"))  
 CACHE_TTL = int(os.getenv("CACHE_TTL", "14400"))
-PROXY_COOLDOWN = int(os.getenv("PROXY_COOLDOWN", "10"))  # seconds between uses of same proxy
+PROXY_COOLDOWN = int(os.getenv("PROXY_COOLDOWN", "10"))  
 PROXY_BAN_TIME = int(os.getenv("PROXY_BAN_TIME", "3600"))
 COOKIE_BAN_TIME = int(os.getenv("COOKIE_BAN_TIME", "3600"))
-IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome")
-YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")  # command for subprocess calls
+# تحديث هدف المتصفح ليتوافق مع أحدث إصدارات 2026
+IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome110")
+YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")  
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
 logger = logging.getLogger("TitanAPI")
@@ -93,7 +93,7 @@ def model_to_primitive(m):
         return m.model_dump()
     return m.dict()
 
-# ============== Cookie manager (enterprise-grade) ==============
+# ============== Cookie manager ==============
 class EnterpriseCookieManager:
     def __init__(self, directory: str = COOKIE_DIR, ban_time: int = COOKIE_BAN_TIME, reuse_delay: int = 10):
         self.directory = directory
@@ -137,7 +137,7 @@ class EnterpriseCookieManager:
 
 cookie_vault = EnterpriseCookieManager()
 
-# ============== Proxy manager (rotation + cooldown + ban) ==============
+# ============== Proxy manager ==============
 class ProxyManager:
     def __init__(self, proxy_file: str = PROXY_FILE, cooldown: int = PROXY_COOLDOWN, ban_time: int = PROXY_BAN_TIME):
         self.file = proxy_file
@@ -218,15 +218,14 @@ class TitanExtractor:
     def __init__(self):
         self.thread_pool = ThreadPoolExecutor(max_workers=max(2, min(MAX_CONCURRENT_EXTRACTS, 32)))
         self.sema = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTS)
-        # impersonation support check (list targets)
         self.impersonate_supported = False
         self.available_impersonate_targets: List[str] = []
         try:
             out = self._run_cmd_sync([YT_DLP_BIN, "--list-impersonate-targets"])
             if out:
                 self.available_impersonate_targets = out.splitlines()
-                # if configured target exists, enable impersonate
-                if any(IMPERSONATE_TARGET in t for t in self.available_impersonate_targets):
+                # Use partial match to ensure it finds chrome110, etc.
+                if any(IMPERSONATE_TARGET in t for t in self.available_impersonate_targets) or any("chrome" in t for t in self.available_impersonate_targets):
                     self.impersonate_supported = True
         except Exception:
             self.impersonate_supported = False
@@ -256,7 +255,8 @@ class TitanExtractor:
             "skip_download": True,
             "extract_flat": False,
             "noplaylist": True,
-            "extractor_args": {"youtube": {"player_client": ["tv", "android"], "player_skip": ["js", "configs"]}},
+            # 🚀 التعديل الأهم: إضافة webpage و js لتجاوز رسالة The page needs to be reloaded
+            "extractor_args": {"youtube": {"player_client": ["ios", "android", "tv"], "player_skip": ["webpage", "js", "configs"]}},
         }
         if cookie:
             opts["cookiefile"] = cookie
@@ -276,9 +276,7 @@ class TitanExtractor:
                 proxy = await proxy_manager.get_proxy()
                 method_used = ""
                 env = os.environ.copy()
-                # set proxy env for subprocess fallback if present
                 if proxy:
-                    # yt-dlp accepts --proxy but some underlying libs use env vars
                     env.update({"http_proxy": proxy, "https_proxy": proxy, "HTTP_PROXY": proxy, "HTTPS_PROXY": proxy})
 
                 try:
@@ -292,73 +290,60 @@ class TitanExtractor:
                     elif attempt == 2:
                         method_used = "CLI IPv6 (yt-dlp) with proxy"
                         cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--force-ipv6"]
-                        if cookie:
-                            cmd.extend(["--cookies", cookie])
-                        if proxy:
-                            cmd.extend(["--proxy", proxy])
-                        if self.impersonate_supported:
-                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=android,web;player_skip=configs"])
+                        if cookie: cmd.extend(["--cookies", cookie])
+                        if proxy: cmd.extend(["--proxy", proxy])
+                        if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        cmd.extend(["--extractor-args", "youtube:player_client=android,ios;player_skip=webpage,configs,js"])
                         out, err = await self._exec_cmd(*cmd, timeout=30, env=env)
                         if out:
                             info = _loads_bytes(out)
-                            if info.get("formats"):
-                                return info, method_used
+                            if info.get("formats"): return info, method_used
                         last_err = (err.decode("utf-8", "ignore") if err else "Empty response")
 
                     elif attempt == 3:
                         method_used = "CLI Remote (ejs) with proxy"
                         cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
-                        if cookie:
-                            cmd.extend(["--cookies", cookie])
-                        if proxy:
-                            cmd.extend(["--proxy", proxy])
-                        if self.impersonate_supported:
-                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        if cookie: cmd.extend(["--cookies", cookie])
+                        if proxy: cmd.extend(["--proxy", proxy])
+                        if self.impersonate_supported: cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        cmd.extend(["--extractor-args", "youtube:player_skip=webpage,configs,js"])
                         out, err = await self._exec_cmd(*cmd, timeout=35, env=env)
                         if out:
                             info = _loads_bytes(out)
-                            if info.get("formats"):
-                                return info, method_used
+                            if info.get("formats"): return info, method_used
                         last_err = (err.decode("utf-8", "ignore") if err else "Empty response")
 
                     elif attempt == 4:
                         method_used = "CLI No-Cookies (Fallback) with proxy"
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--extractor-args", "youtube:player_client=tv"]
-                        if proxy:
-                            cmd.extend(["--proxy", proxy])
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--extractor-args", "youtube:player_client=tv;player_skip=webpage,configs,js"]
+                        if proxy: cmd.extend(["--proxy", proxy])
                         out, err = await self._exec_cmd(*cmd, timeout=30, env=env)
                         if out:
                             info = _loads_bytes(out)
-                            if info.get("formats"):
-                                return info, method_used
+                            if info.get("formats"): return info, method_used
                         last_err = (err.decode("utf-8", "ignore") if err else "Empty response")
 
                     else:
                         method_used = "Final attempt - exhaustive (no cookies, no impersonate)"
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings"]
+                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--extractor-args", "youtube:player_skip=webpage,configs,js"]
                         out, err = await self._exec_cmd(*cmd, timeout=35, env=env)
                         if out:
                             info = _loads_bytes(out)
-                            if info.get("formats"):
-                                return info, method_used
+                            if info.get("formats"): return info, method_used
                         last_err = (err.decode("utf-8", "ignore") if err else "Empty response")
 
                 except Exception as e:
                     last_err = str(e)
 
-                # handle common errors by marking cookie/proxy as failing
                 logger.warning(f"⚠️ {method_used} Failed: {last_err.strip()[:300]}")
 
-                # if cookie produced sign-in/bot responses -> ban cookie
-                if cookie and ("Sign in to confirm" in last_err or "Sign in to confirm you're not a bot" in last_err or "The page needs to be reloaded" in last_err):
+                # 🚀 التعديل الأهم: إزالة "The page needs to be reloaded" من أسباب الحظر لحماية الكوكيز
+                if cookie and ("Sign in to confirm" in last_err or "Sign in to confirm you're not a bot" in last_err):
                     await cookie_vault.report_failure(cookie)
 
-                # if proxy caused network errors or 403s, ban it
                 if proxy and ("403" in last_err or "timed out" in last_err.lower() or "connection refused" in last_err.lower()):
                     await proxy_manager.report_failure(proxy)
 
-                # small exponential backoff + jitter
                 await asyncio.sleep(min(2 ** attempt + random.random(), 12))
 
         raise Exception(f"YouTube refused connection after attempts. Last error: {last_err}")
@@ -366,7 +351,7 @@ class TitanExtractor:
 titan_core = TitanExtractor()
 
 # ============== FastAPI app & auth ==============
-app = FastAPI(title="TitanOS Enterprise Edge API", version="6.0.0-Invincible", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
+app = FastAPI(title="TitanOS Enterprise Edge API", version="6.1.0-Gold", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
 app.add_middleware(GZipMiddleware, minimum_size=500)
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -424,7 +409,6 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
 
         info, method = await titan_core.extract_smart(url, audio_only)
 
-        # determine direct URL and fallback formats
         direct_url = info.get("url") or ""
         fallback_list: List[FormatModel] = []
         for f in info.get("formats", []):
@@ -446,7 +430,6 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
                         direct_url = fmt.url
 
         if not direct_url and fallback_list:
-            # prefer m3u8 for live; else highest-quality heuristic
             fallback_list.sort(key=lambda x: ("m3u8" in x.url, x.ext, x.format_id))
             direct_url = fallback_list[-1].url if fallback_list else ""
 
@@ -473,7 +456,6 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
         }
 
         await cache_engine.set(cache_key, response_data)
-        # gentle delay after success to reduce immediate re-requests (helps avoid rapid-fire)
         await asyncio.sleep(random.uniform(0.5, 1.5))
         return ORJSONResponse(response_data)
 
