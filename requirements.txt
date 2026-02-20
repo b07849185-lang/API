@@ -1,0 +1,10 @@
+fastapi
+uvicorn[standard]
+orjson
+pydantic
+curl_cffi
+websockets
+certifi
+mutagen
+pycryptodomex
+brotli
