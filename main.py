@@ -18,51 +18,38 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
-
-try:
-    import orjson as _orjson  
-    def _loads_bytes(b: bytes) -> dict:
-        try:
-            return _orjson.loads(b)
-        except:
-            return {}
-except Exception:
-    import json as _json  
-    def _loads_bytes(b: bytes) -> dict:
-        try:
-            return _json.loads(b.decode("utf-8", "ignore") if isinstance(b, bytes) else b)
-        except:
-            return {}
-
-try:
-    import yt_dlp
-except ImportError:
-    pass
+import orjson
+import yt_dlp
 
 os.environ.setdefault("TZ", "UTC")
 API_KEY = os.getenv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
 COOKIE_DIR = os.getenv("TITAN_COOKIE_DIR", "cookies")
-MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "8"))  
+MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "32"))  
 CACHE_TTL = int(os.getenv("CACHE_TTL", "14400"))
 COOKIE_BAN_TIME = int(os.getenv("COOKIE_BAN_TIME", "3600"))
 IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome110")
 YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")
 
 try:
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(name)s - %(message)s")
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
     logger = logging.getLogger("TitanAPI")
+    logger.setLevel(logging.INFO)
 except Exception:
     logger = None
 
-class FormatModel(BaseModel):
+class StreamInfo(BaseModel):
     format_id: str
     ext: str
-    resolution: Optional[str] = "audio only"
+    resolution: str
     vcodec: str
     acodec: str
     url: str
-    protocol: str
-    tbr: float
+    quality_score: int
+
+class SmartFormats(BaseModel):
+    best_muxed: List[StreamInfo] = []
+    audio_only: List[StreamInfo] = []
+    video_only: List[StreamInfo] = []
 
 class ThumbnailModel(BaseModel):
     url: str
@@ -80,7 +67,8 @@ class MediaResponse(BaseModel):
     is_live: bool
     thumbnails: List[ThumbnailModel] = []
     direct_stream_url: str
-    fallback_streams: List[FormatModel] = []
+    smart_formats: SmartFormats
+    raw_fallback_count: int
 
 class ErrorResponse(BaseModel):
     success: bool = False
@@ -88,16 +76,24 @@ class ErrorResponse(BaseModel):
     message: str
     process_time_ms: float
 
-def model_to_primitive(m):
+def _loads_bytes(b: bytes) -> dict:
+    try:
+        return orjson.loads(b)
+    except Exception:
+        return {}
+
+def dict_to_model(m):
     try:
         if hasattr(m, "model_dump"):
             return m.model_dump()
-        return m.dict()
+        if hasattr(m, "dict"):
+            return m.dict()
+        return m
     except Exception:
         return {}
 
 class EnterpriseCookieManager:
-    def __init__(self, directory: str = COOKIE_DIR, ban_time: int = COOKIE_BAN_TIME, reuse_delay: int = 5):
+    def __init__(self, directory: str = COOKIE_DIR, ban_time: int = COOKIE_BAN_TIME, reuse_delay: int = 2):
         self.directory = directory
         self.pool: List[str] = []
         self.banned: Dict[str, float] = {}
@@ -163,7 +159,8 @@ class MemoryCache:
         try:
             async with self._lock:
                 item = self._cache.get(key)
-                if not item: return None
+                if not item: 
+                    return None
                 if time.time() - item.get("timestamp", 0) < CACHE_TTL: 
                     return item.get("data")
                 try:
@@ -198,7 +195,7 @@ cache_engine = MemoryCache()
 
 class TitanExtractor:
     def __init__(self):
-        self.thread_pool = ThreadPoolExecutor(max_workers=max(4, min(MAX_CONCURRENT_EXTRACTS, 64)))
+        self.thread_pool = ThreadPoolExecutor(max_workers=max(8, min(MAX_CONCURRENT_EXTRACTS, 128)))
         self.sema = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTS)
         self.impersonate_supported = False
         try:
@@ -208,7 +205,7 @@ class TitanExtractor:
         except Exception:
             pass
 
-    def _run_cmd_sync(self, cmd: List[str], timeout: int = 15) -> str:
+    def _run_cmd_sync(self, cmd: List[str], timeout: int = 5) -> str:
         try:
             import subprocess
             p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
@@ -216,7 +213,7 @@ class TitanExtractor:
         except Exception:
             return ""
 
-    async def _exec_cmd(self, *args: str, timeout: int = 40) -> Tuple[bytes, bytes]:
+    async def _exec_cmd(self, *args: str, timeout: int = 15) -> Tuple[bytes, bytes]:
         try:
             proc = await asyncio.create_subprocess_exec(
                 *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
@@ -236,8 +233,20 @@ class TitanExtractor:
     def _sync_api_extract(self, url: str, cookie: Optional[str]) -> dict:
         try:
             opts = {
-                "quiet": True, "no_warnings": True, "skip_download": True, "extract_flat": False, "noplaylist": True,
-                "extractor_args": {"youtube": {"player_client": ["web"]}},
+                "quiet": True, 
+                "no_warnings": True, 
+                "skip_download": True, 
+                "extract_flat": False, 
+                "noplaylist": True,
+                "default_search": "ytsearch",
+                "extractor_args": {
+                    "youtube": {
+                        "player_client": ["android", "web"], 
+                        "player_skip": ["webpage", "configs"]
+                    }
+                },
+                "remote_components": "ejs:github",
+                "compat_opts": ["no-youtube-unavailable-videos"]
             }
             if cookie: 
                 opts["cookiefile"] = cookie
@@ -248,93 +257,89 @@ class TitanExtractor:
         except Exception:
             return {}
 
-    async def extract_smart(self, url: str, audio_only: bool) -> Tuple[Dict[str, Any], str]:
+    async def extract_smart(self, raw_query: str) -> Tuple[Dict[str, Any], str]:
         last_err = "unknown"
+        try:
+            query = str(raw_query).strip()
+            if not query.lower().startswith(("http://", "https://", "ytsearch", "ytsearch1:")):
+                query = f"ytsearch1:{query}"
+        except Exception:
+            query = raw_query
+
         async with self.sema:
-            for attempt in range(1, 7):  
+            for attempt in range(1, 4):  
                 cookie = await cookie_vault.get_cookie()
                 method_used = ""
                 cookie_used = False 
                 try:
                     if attempt == 1:
-                        method_used = "CLI Standard (Web Client + Remote EJS)"
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
-                        if cookie: 
-                            cmd.extend(["--cookies", cookie])
-                            cookie_used = True
-                        if self.impersonate_supported: 
-                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=web"])
-                        out, err = await self._exec_cmd(*cmd, timeout=20)
-                        if out:
-                            info = _loads_bytes(out)
-                            if info and info.get("formats"): 
-                                return info, method_used
-                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
-
-                    elif attempt == 2:
-                        method_used = "CLI iOS Client (Remote EJS)"
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
-                        if cookie: 
-                            cmd.extend(["--cookies", cookie])
-                            cookie_used = True
-                        if self.impersonate_supported: 
-                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=ios"])
-                        out, err = await self._exec_cmd(*cmd, timeout=25)
-                        if out:
-                            info = _loads_bytes(out)
-                            if info and info.get("formats"): 
-                                return info, method_used
-                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
-
-                    elif attempt == 3:
-                        method_used = "Fast API (Web Client + Cookie)"
+                        method_used = "In-Memory API (Android/Web + EJS)"
                         if cookie: 
                             cookie_used = True
                         try:
                             loop = asyncio.get_running_loop()
-                            info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, url, cookie)
+                            info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, query, cookie)
+                            try:
+                                if info and "entries" in info and isinstance(info["entries"], list) and len(info["entries"]) > 0:
+                                    info = info["entries"][0]
+                            except Exception:
+                                pass
                             if info and info.get("formats"): 
                                 return info, method_used
                         except Exception as inner_e:
                             last_err = str(inner_e)
 
-                    elif attempt == 4:
-                        method_used = "CLI Fallback No-Cookies (Android Client)"
+                    elif attempt == 2:
+                        method_used = "CLI Ultra-Fast (Android)"
                         cookie_used = False 
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
+                        cmd = [YT_DLP_BIN, "--dump-json", "--default-search", "ytsearch1", "--no-warnings", query]
                         if self.impersonate_supported: 
                             cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=android"])
-                        out, err = await self._exec_cmd(*cmd, timeout=25)
+                        cmd.extend(["--extractor-args", "youtube:player_client=android;player_skip=webpage,configs"])
+                        out, err = await self._exec_cmd(*cmd, timeout=12)
                         if out:
-                            info = _loads_bytes(out)
-                            if info and info.get("formats"): 
-                                return info, method_used
+                            try:
+                                for line in out.decode("utf-8", "ignore").splitlines():
+                                    line = line.strip()
+                                    if line.startswith("{"):
+                                        try:
+                                            info = _loads_bytes(line.encode())
+                                            if info and "entries" in info and isinstance(info["entries"], list) and len(info["entries"]) > 0:
+                                                info = info["entries"][0]
+                                            if info and info.get("formats"): 
+                                                return info, method_used
+                                        except Exception:
+                                            continue
+                            except Exception:
+                                pass
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
-                        
-                    elif attempt == 5:
-                        method_used = "CLI Fallback No-Cookies (TV Client)"
-                        cookie_used = False 
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings", "--remote-components", "ejs:github"]
-                        cmd.extend(["--extractor-args", "youtube:player_client=tv"])
-                        out, err = await self._exec_cmd(*cmd, timeout=30)
+
+                    elif attempt == 3:
+                        method_used = "CLI Standard Web (Fallback)"
+                        if cookie:
+                            cookie_used = True
+                        cmd = [YT_DLP_BIN, "--dump-json", "--default-search", "ytsearch1", "--no-warnings", "--remote-components", "ejs:github", query]
+                        if cookie:
+                            cmd.extend(["--cookies", cookie])
+                        if self.impersonate_supported: 
+                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
+                        cmd.extend(["--extractor-args", "youtube:player_client=web"])
+                        out, err = await self._exec_cmd(*cmd, timeout=18)
                         if out:
-                            info = _loads_bytes(out)
-                            if info and info.get("formats"): 
-                                return info, method_used
-                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
-                        
-                    elif attempt == 6:
-                        method_used = "Pure Native Fallback"
-                        cookie_used = False 
-                        cmd = [YT_DLP_BIN, "--dump-json", url, "--no-warnings"]
-                        out, err = await self._exec_cmd(*cmd, timeout=35)
-                        if out:
-                            info = _loads_bytes(out)
-                            if info and info.get("formats"): 
-                                return info, method_used
+                            try:
+                                for line in out.decode("utf-8", "ignore").splitlines():
+                                    line = line.strip()
+                                    if line.startswith("{"):
+                                        try:
+                                            info = _loads_bytes(line.encode())
+                                            if info and "entries" in info and isinstance(info["entries"], list) and len(info["entries"]) > 0:
+                                                info = info["entries"][0]
+                                            if info and info.get("formats"): 
+                                                return info, method_used
+                                        except Exception:
+                                            continue
+                            except Exception:
+                                pass
                         last_err = err.decode("utf-8", "ignore") if err else "Empty response"
 
                 except Exception as e:
@@ -347,21 +352,21 @@ class TitanExtractor:
                     pass
 
                 try:
-                    await asyncio.sleep(min(2 ** attempt + random.random(), 6))
+                    await asyncio.sleep(0.5)
                 except Exception:
                     pass
 
-        raise Exception(f"Extraction failed after all attempts. Last error: {last_err}")
+        raise Exception(f"Extraction failed. Err: {last_err}")
 
 try:
     titan_core = TitanExtractor()
 except Exception:
     titan_core = None
 
-app = FastAPI(title="TitanOS Enterprise", version="7.0.0", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
+app = FastAPI(title="TitanOS Enterprise", version="9.0.0", default_response_class=ORJSONResponse, docs_url=None, redoc_url=None)
 
 try:
-    app.add_middleware(GZipMiddleware, minimum_size=500)
+    app.add_middleware(GZipMiddleware, minimum_size=256)
     app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 except Exception:
     pass
@@ -398,7 +403,7 @@ async def _background_tasks():
     try:
         while True:
             try:
-                await asyncio.sleep(300)
+                await asyncio.sleep(120)
                 await cache_engine.cleanup()
                 cookie_vault.refresh_pool_sync()
             except Exception:
@@ -423,9 +428,61 @@ async def index():
         if os.path.exists("index.html"):
             with open("index.html", "r", encoding="utf-8") as f:
                 return HTMLResponse(content=f.read())
-        return ORJSONResponse({"system": "TitanOS Core", "status": "Active", "engine": "Ultimate CFFI/JS"})
+        return ORJSONResponse({"system": "TitanOS Core", "status": "Active", "engine": "Zero Latency Engine"})
     except Exception:
         return ORJSONResponse({"status": "Active"})
+
+def build_smart_formats(formats_list: List[dict]) -> Tuple[SmartFormats, str, str]:
+    best_muxed, audio_only, video_only = [], [], []
+    try:
+        for f in formats_list:
+            try:
+                if not isinstance(f, dict): continue
+                ext = str(f.get("ext", "")).lower()
+                if ext in ["mhtml", "sb0", "sb1"]: continue
+                proto = str(f.get("protocol", "")).lower()
+                if not proto.startswith(("http", "https", "m3u8")): continue
+                
+                vcodec = str(f.get("vcodec", "none")).lower()
+                acodec = str(f.get("acodec", "none")).lower()
+                url = str(f.get("url", ""))
+                if not url: continue
+                
+                fmt_id = str(f.get("format_id", "0"))
+                res = str(f.get("format_note", f.get("resolution", "unknown")))
+                tbr = float(f.get("tbr", 0.0) or 0.0)
+                
+                score = 0
+                if "mp4" in ext or "m4a" in ext: score += 10
+                score += int(tbr / 100)
+                
+                s_info = StreamInfo(
+                    format_id=fmt_id, ext=ext, resolution=res,
+                    vcodec=vcodec, acodec=acodec, url=url, quality_score=score
+                )
+                
+                if vcodec != "none" and acodec != "none":
+                    if "m3u8" not in proto: s_info.quality_score += 50
+                    best_muxed.append(s_info)
+                elif vcodec == "none" and acodec != "none":
+                    audio_only.append(s_info)
+                elif vcodec != "none" and acodec == "none":
+                    video_only.append(s_info)
+            except Exception:
+                continue
+                
+        best_muxed.sort(key=lambda x: x.quality_score, reverse=True)
+        audio_only.sort(key=lambda x: x.quality_score, reverse=True)
+        video_only.sort(key=lambda x: x.quality_score, reverse=True)
+        
+        sf = SmartFormats(best_muxed=best_muxed, audio_only=audio_only, video_only=video_only)
+        
+        d_audio = audio_only[0].url if audio_only else ""
+        d_video = best_muxed[0].url if best_muxed else (video_only[0].url if video_only else "")
+        
+        return sf, d_audio, d_video
+    except Exception:
+        return SmartFormats(), "", ""
 
 @app.get("/api/v1/extract", response_model=MediaResponse)
 async def extract_media(url: str = Query(...), audio_only: bool = Query(True), force_refresh: bool = Query(False), auth: str = Depends(verify_auth)):
@@ -453,64 +510,32 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
             except Exception:
                 pass
 
-        info, method = await titan_core.extract_smart(url, audio_only)
+        info, method = await titan_core.extract_smart(url)
 
-        direct_url = ""
         try:
-            direct_url = info.get("url", "")
+            raw_formats = info.get("formats", [])
+            if not isinstance(raw_formats, list): raw_formats = []
         except Exception:
-            pass
+            raw_formats = []
+
+        smart_formats, best_a, best_v = build_smart_formats(raw_formats)
+        
+        try:
+            if audio_only:
+                direct_url = best_a if best_a else best_v
+            else:
+                direct_url = best_v if best_v else best_a
             
-        fallback_list: List[FormatModel] = []
-        try:
-            formats_data = info.get("formats", [])
-            if not isinstance(formats_data, list):
-                formats_data = []
+            if not direct_url:
+                direct_url = str(info.get("url", ""))
                 
-            for f in formats_data:
-                try:
-                    if not isinstance(f, dict): continue
-                    proto = str(f.get("protocol", "")).lower()
-                    f_url = str(f.get("url", ""))
-                    if proto.startswith(("http", "https", "m3u8")) or f_url:
-                        fmt = FormatModel(
-                            format_id=str(f.get("format_id", "0")),
-                            ext=str(f.get("ext", "unknown")),
-                            resolution=str(f.get("format_note", f.get("resolution", "audio"))),
-                            vcodec=str(f.get("vcodec", "none")),
-                            acodec=str(f.get("acodec", "none")),
-                            url=f_url,
-                            protocol=proto,
-                            tbr=float(f.get("tbr", 0.0) or 0.0)
-                        )
-                        fallback_list.append(fmt)
-                except Exception:
-                    continue
-        except Exception:
-            pass
-
-        try:
-            if fallback_list:
-                if audio_only:
-                    audio_formats = [f for f in fallback_list if f.vcodec == "none" and f.acodec != "none"]
-                    if audio_formats:
-                        audio_formats.sort(key=lambda x: (x.tbr, "m4a" in x.ext))
-                        direct_url = audio_formats[-1].url
-                else:
-                    video_formats = [f for f in fallback_list if f.vcodec != "none" and f.acodec != "none"]
-                    if video_formats:
-                        video_formats.sort(key=lambda x: ("m3u8" in x.protocol, x.tbr))
-                        direct_url = video_formats[-1].url
-                        
-                if not direct_url:
-                    fallback_list.sort(key=lambda x: ("m3u8" in x.protocol, x.tbr))
-                    direct_url = fallback_list[-1].url
-        except Exception:
-            if fallback_list and not direct_url:
-                direct_url = fallback_list[-1].url
-
-        if not direct_url: 
-            raise ValueError("Extraction yielded no valid stream URL")
+            if not direct_url and len(raw_formats) > 0:
+                direct_url = str(raw_formats[-1].get("url", ""))
+                
+            if not direct_url: 
+                raise ValueError("Extraction yielded no valid streams.")
+        except Exception as ex:
+            raise ValueError(f"Stream parsing failed: {ex}")
 
         try:
             raw_thumbs = info.get("thumbnails", [])
@@ -552,11 +577,12 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
                 "title": vid_title,
                 "duration": dur,
                 "is_live": is_live,
-                "thumbnails": [model_to_primitive(t) for t in thumbs[-1:]] if thumbs else [],
+                "thumbnails": [dict_to_model(t) for t in thumbs[-1:]] if thumbs else [],
                 "direct_stream_url": str(direct_url),
-                "fallback_streams": [model_to_primitive(f) for f in fallback_list[-5:]] if fallback_list else []
+                "smart_formats": dict_to_model(smart_formats),
+                "raw_fallback_count": len(raw_formats)
             }
-        except Exception as e:
+        except Exception:
             raise ValueError("Failed building final response structure")
 
         try:
@@ -572,7 +598,7 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
         except Exception:
             p_time = 0.0
         try:
-            return ORJSONResponse(status_code=500, content=ErrorResponse(success=False, error_code=500, message=str(e), process_time_ms=p_time).dict())
+            return ORJSONResponse(status_code=500, content=dict_to_model(ErrorResponse(success=False, error_code=500, message=str(e), process_time_ms=p_time)))
         except Exception:
             return ORJSONResponse(status_code=500, content={"success": False, "error_code": 500, "message": "Critical Failure", "process_time_ms": 0.0})
 
