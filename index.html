@@ -2,367 +2,474 @@
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TitanOS - Liquid Glass Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TitanOS - Ultimate Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         /* ==========================================================================
-           1. المتغيرات وإعدادات الـ 120FPS (تقنيات 2026)
+           1. المتغيرات والأساسيات (120FPS Optimized)
            ========================================================================== */
         :root {
-            --glass-bg: rgba(255, 255, 255, 0.45);
-            --glass-border: rgba(255, 255, 255, 0.6);
-            --glass-shadow: 0 8px 32px 0 rgba(135, 142, 160, 0.15);
-            --text-main: #1e293b;
+            --glass-bg: rgba(255, 255, 255, 0.6);
+            --glass-border: rgba(255, 255, 255, 0.8);
+            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+            --text-main: #0f172a;
             --text-muted: #475569;
-            --accent: #3b82f6;
+            --accent: #2563eb;
+            --accent-hover: #1d4ed8;
             --success: #10b981;
             --danger: #ef4444;
-            --font-ar: 'Cairo', sans-serif;
-            --font-en: 'Inter', sans-serif;
+            --dark-player: #000000;
+            --sidebar-width: 280px;
         }
 
         * {
             box-sizing: border-box;
             margin: 0;
             padding: 0;
-            /* تسريع الريندر */
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+            font-family: 'Cairo', sans-serif;
+            -webkit-tap-highlight-color: transparent;
         }
 
         body {
-            font-family: var(--font-ar);
+            background-color: #f8fafc;
             color: var(--text-main);
-            min-height: 100vh;
             overflow-x: hidden;
-            background-color: #f1f5f9;
+            min-height: 100vh;
+            display: flex;
         }
 
         /* ==========================================================================
-           2. الخلفية السائلة (Liquid Background Animation)
+           2. الخلفية الديناميكية (Liquid Background)
            ========================================================================== */
         .liquid-bg {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
             z-index: -1;
-            overflow: hidden;
             background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            overflow: hidden;
         }
 
         .blob {
             position: absolute;
             border-radius: 50%;
-            filter: blur(80px);
-            opacity: 0.7;
-            /* استخدام transform فقط للـ 120fps */
+            filter: blur(60px);
+            opacity: 0.8;
             will-change: transform;
-            animation: float 15s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+            animation: float 20s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
         }
 
-        .blob-1 { width: 600px; height: 600px; background: #ffffff; top: -10%; left: -10%; animation-delay: 0s; }
-        .blob-2 { width: 500px; height: 500px; background: #e0f2fe; bottom: -20%; right: -10%; animation-delay: -5s; }
-        .blob-3 { width: 400px; height: 400px; background: #f8fafc; top: 40%; left: 40%; animation-delay: -10s; }
+        .blob-1 { width: 50vw; height: 50vw; background: rgba(255,255,255,0.8); top: -10%; right: -10%; }
+        .blob-2 { width: 40vw; height: 40vw; background: rgba(186, 216, 255, 0.6); bottom: -10%; left: -10%; animation-delay: -5s; }
+        .blob-3 { width: 30vw; height: 30vw; background: rgba(255, 255, 255, 0.9); top: 40%; left: 30%; animation-delay: -10s; }
 
         @keyframes float {
             0% { transform: translate(0, 0) scale(1); }
-            100% { transform: translate(100px, 50px) scale(1.1); }
+            100% { transform: translate(50px, 50px) scale(1.1); }
         }
 
         /* ==========================================================================
-           3. تأثير الزجاج (Glassmorphism Components)
+           3. فئات الزجاج الموحدة (Glassmorphism)
            ========================================================================== */
         .glass-panel {
             background: var(--glass-bg);
-            backdrop-filter: blur(20px) saturate(150%);
-            -webkit-backdrop-filter: blur(20px) saturate(150%);
+            backdrop-filter: blur(24px) saturate(180%);
+            -webkit-backdrop-filter: blur(24px) saturate(180%);
             border: 1px solid var(--glass-border);
-            border-radius: 24px;
+            border-radius: 20px;
             box-shadow: var(--glass-shadow);
-            padding: 2rem;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
-            will-change: transform, box-shadow;
-        }
-
-        .glass-panel:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 12px 40px 0 rgba(135, 142, 160, 0.2);
-        }
-
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 2rem;
-            position: relative;
-            z-index: 1;
         }
 
         /* ==========================================================================
-           4. واجهة المستخدم (Header & Inputs)
+           4. القائمة الجانبية (Sidebar)
            ========================================================================== */
-        header {
+        .sidebar {
+            width: var(--sidebar-width);
+            height: 100vh;
+            position: fixed;
+            right: 0;
+            top: 0;
+            padding: 2rem 1.5rem;
             display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            z-index: 100;
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 0;
+            border-left: 1px solid var(--glass-border);
+            border-right: none;
+        }
+
+        .sidebar-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            font-size: 1.8rem;
+            font-weight: 800;
+            background: linear-gradient(45deg, var(--accent), #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .stats-box {
+            background: rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+            padding: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            border: 1px solid rgba(255,255,255,0.7);
+        }
+
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.95rem;
+            font-weight: 600;
+        }
+
+        .stat-value {
+            font-family: 'Inter', sans-serif;
+            color: var(--accent);
+            font-weight: 800;
+        }
+
+        .nav-menu {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .nav-item {
+            padding: 1rem 1.2rem;
+            border-radius: 12px;
+            cursor: pointer;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            transition: all 0.3s ease;
+            color: var(--text-muted);
+        }
+
+        .nav-item.active, .nav-item:hover {
+            background: rgba(255, 255, 255, 0.8);
+            color: var(--accent);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+            transform: translateX(-5px);
+        }
+
+        /* ==========================================================================
+           5. المحتوى الرئيسي (Main Content)
+           ========================================================================== */
+        .main-content {
+            margin-right: var(--sidebar-width);
+            width: calc(100% - var(--sidebar-width));
+            padding: 2rem;
+            min-height: 100vh;
+            transition: margin 0.4s ease, width 0.4s ease;
+        }
+
+        .top-nav {
+            display: none; /* يظهر في الموبايل فقط */
             justify-content: space-between;
             align-items: center;
             margin-bottom: 2rem;
         }
 
-        h1 {
-            font-size: 2.5rem;
-            font-weight: 800;
-            background: linear-gradient(45deg, #1e293b, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .status-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            padding: 0.5rem 1rem;
-            border-radius: 50px;
-            font-weight: 600;
-            font-size: 0.9rem;
-            background: rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(255, 255, 255, 0.8);
-        }
-
-        .status-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--text-muted);
-            box-shadow: 0 0 10px currentColor;
-        }
-        .status-dot.online { background: var(--success); }
-        .status-dot.offline { background: var(--danger); }
-
-        .input-group {
-            display: flex;
-            flex-direction: column;
-            gap: 1.5rem;
-        }
-
-        .url-input {
-            width: 100%;
-            padding: 1.2rem 1.5rem;
-            font-size: 1.1rem;
-            font-family: var(--font-en);
-            background: rgba(255, 255, 255, 0.6);
-            border: 2px solid rgba(255, 255, 255, 0.8);
-            border-radius: 16px;
+        .menu-btn {
+            font-size: 1.5rem;
             color: var(--text-main);
-            outline: none;
-            transition: all 0.3s ease;
-            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
-        }
-
-        .url-input:focus {
-            border-color: var(--accent);
-            background: rgba(255, 255, 255, 0.9);
-            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
-        }
-
-        .controls {
-            display: flex;
-            gap: 1.5rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .checkbox-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            cursor: pointer;
-            font-weight: 600;
-            user-select: none;
-        }
-
-        .btn-extract {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-            color: white;
+            background: none;
             border: none;
-            padding: 1rem 2.5rem;
-            font-size: 1.2rem;
-            font-family: var(--font-ar);
-            font-weight: 800;
-            border-radius: 16px;
             cursor: pointer;
-            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
-            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
-            margin-right: auto;
+            padding: 0.5rem;
         }
 
-        .btn-extract:hover {
-            transform: translateY(-2px) scale(1.02);
-            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
-        }
-
-        .btn-extract:active {
-            transform: translateY(1px) scale(0.98);
-        }
-
-        .btn-extract:disabled {
-            background: #94a3b8;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-
-        /* ==========================================================================
-           5. منطقة النتائج والإحصائيات (Results & Stats)
-           ========================================================================== */
-        #results-container {
-            margin-top: 2rem;
-            display: none;
-            opacity: 0;
-            transform: translateY(20px);
-            transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        #results-container.visible {
-            display: block;
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
+        /* مربع الإدخال والبحث */
+        .search-container {
+            padding: 2rem;
             margin-bottom: 2rem;
         }
 
-        .stat-card {
-            background: rgba(255, 255, 255, 0.5);
-            border: 1px solid rgba(255,255,255,0.7);
-            border-radius: 16px;
-            padding: 1.5rem;
-            text-align: center;
-        }
-
-        .stat-value {
+        .search-title {
             font-size: 1.5rem;
+            margin-bottom: 1.5rem;
             font-weight: 800;
-            font-family: var(--font-en);
-            color: var(--accent);
-            margin-bottom: 0.5rem;
         }
 
-        .stat-label {
-            font-size: 0.9rem;
-            color: var(--text-muted);
+        .input-group {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .main-input {
+            flex: 1;
+            padding: 1.2rem 1.5rem;
+            font-size: 1.1rem;
+            border-radius: 16px;
+            border: 2px solid rgba(255,255,255,0.8);
+            background: rgba(255,255,255,0.7);
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.3s ease;
+        }
+        
+        .main-input:focus {
+            border-color: var(--accent);
+            background: #ffffff;
+            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--accent) 0%, #1e40af 100%);
+            color: white;
+            border: none;
+            padding: 0 2rem;
+            border-radius: 16px;
+            font-size: 1.1rem;
+            font-weight: 800;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            white-space: nowrap;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background: #94a3b8;
+            transform: none;
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+
+        .options-row {
+            display: flex;
+            gap: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-label {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             font-weight: 600;
+            cursor: pointer;
+            user-select: none;
         }
 
-        .media-section {
+        .checkbox-label input[type="checkbox"] {
+            width: 20px;
+            height: 20px;
+            accent-color: var(--accent);
+        }
+
+        /* ==========================================================================
+           6. مشغل الفيديو والإحصائيات (Player & Results)
+           ========================================================================== */
+        #results-area {
+            display: none;
+            animation: fadeIn 0.5s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .grid-layout {
             display: grid;
-            grid-template-columns: 1fr;
+            grid-template-columns: 2fr 1fr;
             gap: 2rem;
             margin-bottom: 2rem;
         }
 
-        @media (min-width: 900px) {
-            .media-section { grid-template-columns: 1.5fr 1fr; }
+        .player-box {
+            padding: 1rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
         }
 
-        .player-wrapper {
+        /* تصميم المشغل الأسود */
+        .video-container {
             width: 100%;
-            border-radius: 16px;
-            overflow: hidden;
-            background: #000;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
             aspect-ratio: 16/9;
+            background-color: var(--dark-player);
+            border-radius: 12px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
         }
 
         video, audio {
             width: 100%;
             height: 100%;
+            object-fit: contain;
             outline: none;
         }
 
-        .video-info h2 {
-            font-size: 1.5rem;
-            margin-bottom: 1rem;
+        .media-title {
+            font-size: 1.3rem;
+            font-weight: 800;
             line-height: 1.4;
         }
 
-        .info-badge {
-            display: inline-block;
-            padding: 0.3rem 0.8rem;
-            border-radius: 8px;
-            background: rgba(59, 130, 246, 0.1);
-            color: var(--accent);
-            font-weight: 600;
-            font-size: 0.85rem;
-            margin-left: 0.5rem;
-            margin-bottom: 0.5rem;
+        .badges-container {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
         }
 
-        /* ==========================================================================
-           6. الجداول (Tables)
-           ========================================================================== */
-        .table-wrapper {
-            overflow-x: auto;
+        .badge {
+            padding: 0.4rem 1rem;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 800;
+            background: rgba(37, 99, 235, 0.1);
+            color: var(--accent);
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* كروت الإحصائيات المصغرة */
+        .mini-stats {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .info-card {
+            background: rgba(255,255,255,0.6);
+            padding: 1.5rem;
             border-radius: 16px;
-            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255,255,255,0.8);
+            text-align: center;
+        }
+        
+        .info-card h4 { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
+        .info-card p { font-family: 'Inter', sans-serif; font-size: 1.2rem; font-weight: 800; color: var(--text-main); }
+
+        /* ==========================================================================
+           7. الجداول الذكية (Smart Tables)
+           ========================================================================== */
+        .formats-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .format-section {
+            padding: 1.5rem;
+        }
+
+        .format-section h3 {
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--accent);
+        }
+
+        .table-responsive {
+            overflow-x: auto;
+            border-radius: 12px;
             border: 1px solid var(--glass-border);
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-family: var(--font-en);
-            font-size: 0.95rem;
-            text-align: left;
+            background: rgba(255,255,255,0.5);
+            text-align: right;
         }
 
         th, td {
             padding: 1rem;
             border-bottom: 1px solid rgba(0,0,0,0.05);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.9rem;
         }
 
-        th {
-            background: rgba(255,255,255,0.6);
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            font-size: 0.8rem;
-        }
-
-        td { color: var(--text-main); font-weight: 500; }
-
+        th { background: rgba(255,255,255,0.7); color: var(--text-muted); font-family: 'Cairo', sans-serif; font-weight: 800; }
         tr:last-child td { border-bottom: none; }
+        tr:hover td { background: rgba(255,255,255,0.9); }
 
-        tr:hover td { background: rgba(255,255,255,0.8); }
-
-        .link-btn {
-            display: inline-block;
-            padding: 0.4rem 1rem;
+        .btn-download {
             background: var(--text-main);
             color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 6px;
             text-decoration: none;
-            border-radius: 8px;
-            font-size: 0.85rem;
+            font-size: 0.8rem;
+            font-family: 'Cairo', sans-serif;
             transition: opacity 0.2s;
+            display: inline-block;
         }
-        .link-btn:hover { opacity: 0.8; }
+        .btn-download:hover { opacity: 0.8; }
 
         /* Loader */
-        .loader {
+        .spinner {
             display: none;
-            width: 48px;
-            height: 48px;
-            border: 5px solid rgba(59, 130, 246, 0.2);
-            border-bottom-color: var(--accent);
+            width: 50px;
+            height: 50px;
+            border: 5px solid rgba(37, 99, 235, 0.2);
+            border-top-color: var(--accent);
             border-radius: 50%;
-            animation: rotation 1s linear infinite;
+            animation: spin 1s linear infinite;
             margin: 2rem auto;
         }
-        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
+        /* ==========================================================================
+           8. توافق الموبايل (Responsive Design)
+           ========================================================================== */
+        @media (max-width: 992px) {
+            .grid-layout { grid-template-columns: 1fr; }
+            .mini-stats { flex-direction: row; flex-wrap: wrap; }
+            .info-card { flex: 1; min-width: 120px; }
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(100%); /* إخفاء لليمين لأن الاتجاه RTL */
+            }
+            .sidebar.active {
+                transform: translateX(0);
+                box-shadow: -10px 0 30px rgba(0,0,0,0.1);
+            }
+            .main-content {
+                margin-right: 0;
+                width: 100%;
+                padding: 1rem;
+            }
+            .top-nav { display: flex; }
+            .input-group { flex-direction: column; }
+            .btn-primary { padding: 1rem; justify-content: center; }
+            .blob-1 { width: 80vw; height: 80vw; }
+            .blob-2 { width: 70vw; height: 70vw; }
+            
+            /* Overlay للموبايل */
+            .overlay {
+                display: none;
+                position: fixed;
+                top: 0; left: 0; width: 100vw; height: 100vh;
+                background: rgba(0,0,0,0.5);
+                z-index: 90;
+                backdrop-filter: blur(5px);
+            }
+            .overlay.active { display: block; }
+        }
     </style>
 </head>
 <body>
@@ -373,278 +480,305 @@
         <div class="blob blob-3"></div>
     </div>
 
-    <div class="container">
-        <header>
-            <h1>TitanOS</h1>
-            <div class="glass-panel" style="padding: 0.5rem 1.5rem; border-radius: 50px;">
-                <div class="status-badge">
-                    <span id="api-status-dot" class="status-dot"></span>
-                    <span id="api-status-text">جاري فحص السيرفر...</span>
-                </div>
-            </div>
-        </header>
+    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
 
-        <main class="glass-panel">
+    <aside class="sidebar glass-panel" id="sidebar">
+        <div class="sidebar-header">
+            <i class="fa-solid fa-bolt"></i>
+            TitanOS
+        </div>
+
+        <div class="stats-box">
+            <div class="stat-row">
+                <span>حالة السيرفر</span>
+                <span id="ping-status" style="color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i></span>
+            </div>
+            <div class="stat-row">
+                <span>سرعة الاستجابة</span>
+                <span id="ping-time" class="stat-value">-- ms</span>
+            </div>
+            <div class="stat-row">
+                <span>إجمالي العمليات</span>
+                <span id="total-ops" class="stat-value">0</span>
+            </div>
+        </div>
+
+        <ul class="nav-menu">
+            <li class="nav-item active"><i class="fa-solid fa-house"></i> الرئيسية</li>
+            <li class="nav-item" onclick="alert('سيتم إضافتها قريباً')"><i class="fa-solid fa-clock-rotate-left"></i> السجل</li>
+            <li class="nav-item" onclick="alert('سيتم إضافتها قريباً')"><i class="fa-solid fa-gear"></i> الإعدادات</li>
+        </ul>
+    </aside>
+
+    <main class="main-content">
+        <nav class="top-nav">
+            <h2 style="font-weight: 800; color: var(--accent);">TitanOS</h2>
+            <button class="menu-btn" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+        </nav>
+
+        <div class="search-container glass-panel">
+            <h1 class="search-title">المحرك الذكي <i class="fa-solid fa-rocket" style="color: var(--accent);"></i></h1>
+            
             <div class="input-group">
-                <input type="url" id="media-url" class="url-input" placeholder="أدخل رابط يوتيوب هنا (مثال: https://youtu.be/...)">
-                
-                <div class="controls">
-                    <label class="checkbox-wrapper">
-                        <input type="checkbox" id="audio-only" style="width: 18px; height: 18px;" checked>
-                        استخراج صوت فقط (Audio Only)
-                    </label>
-                    <label class="checkbox-wrapper">
-                        <input type="checkbox" id="force-refresh" style="width: 18px; height: 18px;">
-                        تجاهل الكاش (Force Refresh)
-                    </label>
-                    <button id="extract-btn" class="btn-extract" onclick="startExtraction()">استخراج الآن</button>
-                </div>
-            </div>
-            <div id="loader" class="loader"></div>
-            <div id="error-message" style="color: var(--danger); font-weight: bold; margin-top: 1rem; text-align: center; display: none;"></div>
-        </main>
-
-        <section id="results-container">
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-time">0 ms</div>
-                    <div class="stat-label">سرعة الاستخراج</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-method" style="font-size: 1.1rem; line-height: 1.4;">-</div>
-                    <div class="stat-label">المحرك المستخدم</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="stat-cache">-</div>
-                    <div class="stat-label">حالة الكاش</div>
-                </div>
+                <input type="text" id="media-input" class="main-input" placeholder="أدخل رابط يوتيوب أو كلمة بحث (مثال: سورة الكهف)">
+                <button id="extract-btn" class="btn-primary" onclick="startExtraction()">
+                    <i class="fa-solid fa-magnifying-glass"></i> استخراج
+                </button>
             </div>
 
-            <div class="glass-panel media-section">
-                <div class="player-wrapper" id="player-container">
+            <div class="options-row">
+                <label class="checkbox-label">
+                    <input type="checkbox" id="audio-only" checked>
+                    الصوت فقط (أسرع)
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="force-refresh">
+                    تجاهل الكاش
+                </label>
+            </div>
+            
+            <div id="loader" class="spinner"></div>
+            <div id="error-msg" style="color: var(--danger); margin-top: 1rem; font-weight: 800; text-align: center; display: none;"></div>
+        </div>
+
+        <div id="results-area">
+            <div class="grid-layout">
+                <div class="player-box glass-panel">
+                    <div class="video-container" id="player-wrapper">
+                        </div>
+                    <h2 class="media-title" id="res-title">جاري التحميل...</h2>
+                    <div class="badges-container" id="res-badges"></div>
+                </div>
+
+                <div class="mini-stats">
+                    <div class="info-card">
+                        <h4>زمن المعالجة</h4>
+                        <p id="res-time">0 ms</p>
                     </div>
-                <div class="video-info">
-                    <h2 id="video-title">عنوان الفيديو يظهر هنا</h2>
-                    <div id="video-badges"></div>
-                    <p style="margin-top: 1rem; color: var(--text-muted); font-size: 0.9rem;">
-                        <strong>ID:</strong> <span id="video-id" style="font-family: var(--font-en);"></span>
-                    </p>
+                    <div class="info-card">
+                        <h4>محرك التخطي</h4>
+                        <p id="res-method" style="font-size: 1rem; color: var(--accent);">-</p>
+                    </div>
+                    <div class="info-card">
+                        <h4>مصدر البيانات</h4>
+                        <p id="res-cache">-</p>
+                    </div>
                 </div>
             </div>
 
-            <div class="glass-panel">
-                <h3 style="margin-bottom: 1.5rem; color: var(--text-muted);">الروابط الاحتياطية والجودات (Fallback Streams)</h3>
-                <div class="table-wrapper">
-                    <table id="streams-table">
-                        <thead>
-                            <tr>
-                                <th>Format ID</th>
-                                <th>Ext</th>
-                                <th>Resolution</th>
-                                <th>Video Codec</th>
-                                <th>Audio Codec</th>
-                                <th>Action</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            </ul>
-                    </table>
+            <div class="formats-container">
+                <div class="format-section glass-panel" id="sec-muxed" style="display: none;">
+                    <h3><i class="fa-solid fa-film"></i> أفضل جودة (فيديو + صوت)</h3>
+                    <div class="table-responsive">
+                        <table id="table-muxed">
+                            <thead><tr><th>ID</th><th>صيغة</th><th>جودة</th><th>كودك الفيديو</th><th>كودك الصوت</th><th>إجراء</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="format-section glass-panel" id="sec-audio" style="display: none;">
+                    <h3><i class="fa-solid fa-music"></i> صوت فقط (مثالي للبوتات)</h3>
+                    <div class="table-responsive">
+                        <table id="table-audio">
+                            <thead><tr><th>ID</th><th>صيغة</th><th>جودة (Bitrate)</th><th>كودك الصوت</th><th>إجراء</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="format-section glass-panel" id="sec-video" style="display: none;">
+                    <h3><i class="fa-solid fa-video-slash"></i> فيديو بدون صوت (للمونتاج)</h3>
+                    <div class="table-responsive">
+                        <table id="table-video">
+                            <thead><tr><th>ID</th><th>صيغة</th><th>جودة</th><th>كودك الفيديو</th><th>إجراء</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
-        </section>
-    </div>
+        </div>
+    </main>
 
     <script>
-        // ==========================================
-        // إعدادات الـ API (اربطها بسيرفرك)
-        // ==========================================
-        const API_BASE_URL = 'https://api-rskcpw.fly.dev'; // رابط السيرفر بتاعك
-        const API_KEY = 'Titan_2026_Ultra_Fast';           // كلمة السر
+        // إعدادات الـ API
+        const API_BASE_URL = window.location.origin; // بيقرأ الرابط اللي هو عليه تلقائياً
+        const API_KEY = 'Titan_2026_Ultra_Fast';
 
-        // العناصر
-        const elements = {
-            statusDot: document.getElementById('api-status-dot'),
-            statusText: document.getElementById('api-status-text'),
-            urlInput: document.getElementById('media-url'),
-            audioOnly: document.getElementById('audio-only'),
-            forceRefresh: document.getElementById('force-refresh'),
-            extractBtn: document.getElementById('extract-btn'),
-            loader: document.getElementById('loader'),
-            errorMsg: document.getElementById('error-message'),
-            resultsContainer: document.getElementById('results-container'),
-            statTime: document.getElementById('stat-time'),
-            statMethod: document.getElementById('stat-method'),
-            statCache: document.getElementById('stat-cache'),
-            playerContainer: document.getElementById('player-container'),
-            videoTitle: document.getElementById('video-title'),
-            videoBadges: document.getElementById('video-badges'),
-            videoId: document.getElementById('video-id'),
-            streamsTableBody: document.querySelector('#streams-table tbody')
-        };
+        // إدارة حالة العمليات في المتصفح
+        let totalOps = localStorage.getItem('titan_ops') ? parseInt(localStorage.getItem('titan_ops')) : 0;
+        document.getElementById('total-ops').textContent = totalOps;
 
-        // 1. فحص حالة السيرفر عند التحميل
-        async function checkServerStatus() {
-            try {
-                const response = await fetch(`${API_BASE_URL}/`);
-                if (response.ok) {
-                    elements.statusDot.className = 'status-dot online';
-                    elements.statusText.textContent = 'السيرفر متصل (Operational)';
-                    elements.statusText.style.color = 'var(--success)';
-                } else {
-                    throw new Error('Server returned non-200');
-                }
-            } catch (error) {
-                elements.statusDot.className = 'status-dot offline';
-                elements.statusText.textContent = 'السيرفر غير متصل';
-                elements.statusText.style.color = 'var(--danger)';
-            }
+        // فتح وقفل القائمة الجانبية للموبايل
+        function toggleSidebar() {
+            document.getElementById('sidebar').classList.toggle('active');
+            document.getElementById('overlay').classList.toggle('active');
         }
 
-        // 2. دالة الاستخراج الرئيسية
-        async function startExtraction() {
-            const url = elements.urlInput.value.trim();
-            if (!url) {
-                showError('يرجى إدخال رابط يوتيوب صحيح.');
-                return;
+        // فحص البنج (Ping) للسيرفر
+        async function checkPing() {
+            const start = performance.now();
+            try {
+                const res = await fetch(`${API_BASE_URL}/`);
+                if(res.ok) {
+                    const ping = Math.round(performance.now() - start);
+                    document.getElementById('ping-time').textContent = `${ping} ms`;
+                    document.getElementById('ping-status').innerHTML = `<i class="fa-solid fa-circle-check" style="color: var(--success);"></i> متصل`;
+                }
+            } catch (e) {
+                document.getElementById('ping-status').innerHTML = `<i class="fa-solid fa-circle-xmark" style="color: var(--danger);"></i> غير متصل`;
+                document.getElementById('ping-time').textContent = `Err`;
             }
+            setTimeout(checkPing, 30000); // تحديث كل 30 ثانية
+        }
+        checkPing();
 
-            // تجهيز الواجهة للتحميل
-            elements.errorMsg.style.display = 'none';
-            elements.resultsContainer.classList.remove('visible');
-            elements.loader.style.display = 'block';
-            elements.extractBtn.disabled = true;
-            elements.extractBtn.textContent = 'جاري المعالجة...';
+        // دالة الاستخراج
+        async function startExtraction() {
+            const inputVal = document.getElementById('media-input').value.trim();
+            if (!inputVal) return;
 
-            const audioOnly = elements.audioOnly.checked;
-            const forceRefresh = elements.forceRefresh.checked;
+            // تحديث الواجهة
+            document.getElementById('error-msg').style.display = 'none';
+            document.getElementById('results-area').style.display = 'none';
+            document.getElementById('loader').style.display = 'block';
+            const btn = document.getElementById('extract-btn');
+            btn.disabled = true;
+            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> جاري...`;
+
+            const audioOnly = document.getElementById('audio-only').checked;
+            const forceRefresh = document.getElementById('force-refresh').checked;
 
             try {
-                // بناء الرابط
-                const apiUrl = `${API_BASE_URL}/api/v1/extract?url=${encodeURIComponent(url)}&audio_only=${audioOnly}&force_refresh=${forceRefresh}`;
-
-                // إرسال الطلب للسيرفر
+                const apiUrl = `${API_BASE_URL}/api/v1/extract?url=${encodeURIComponent(inputVal)}&audio_only=${audioOnly}&force_refresh=${forceRefresh}`;
+                
                 const response = await fetch(apiUrl, {
-                    method: 'GET',
-                    headers: {
-                        'X-Titan-Key': API_KEY,
-                        'Accept': 'application/json'
-                    }
+                    headers: { 'X-Titan-Key': API_KEY, 'Accept': 'application/json' }
                 });
 
                 const data = await response.json();
 
                 if (!response.ok || !data.success) {
-                    throw new Error(data.message || `HTTP Error: ${response.status}`);
+                    throw new Error(data.message || 'حدث خطأ غير معروف في السيرفر');
                 }
 
-                // عرض النتائج
+                // زيادة العداد
+                totalOps++;
+                localStorage.setItem('titan_ops', totalOps);
+                document.getElementById('total-ops').textContent = totalOps;
+
                 renderResults(data, audioOnly);
 
-            } catch (error) {
-                showError(`حدث خطأ أثناء الاستخراج: ${error.message}`);
+            } catch (err) {
+                const errMsg = document.getElementById('error-msg');
+                errMsg.textContent = err.message;
+                errMsg.style.display = 'block';
             } finally {
-                // إعادة الواجهة لطبيعتها
-                elements.loader.style.display = 'none';
-                elements.extractBtn.disabled = false;
-                elements.extractBtn.textContent = 'استخراج الآن';
+                document.getElementById('loader').style.display = 'none';
+                btn.disabled = false;
+                btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> استخراج`;
             }
         }
 
-        // 3. دالة عرض النتائج في الواجهة
+        // دعم الضغط على Enter
+        document.getElementById('media-input').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') startExtraction();
+        });
+
+        // رسم النتائج في الواجهة
         function renderResults(data, isAudioOnly) {
             // الإحصائيات
-            elements.statTime.textContent = `${data.process_time_ms} ms`;
-            elements.statMethod.textContent = data.extraction_method;
-            elements.statCache.textContent = data.cached ? 'مأخوذ من الكاش ⚡' : 'سحب مباشر 🌐';
-            elements.statCache.style.color = data.cached ? 'var(--success)' : 'var(--text-main)';
+            document.getElementById('res-time').textContent = `${data.process_time_ms} ms`;
+            document.getElementById('res-method').textContent = data.extraction_method;
+            const cacheEl = document.getElementById('res-cache');
+            cacheEl.innerHTML = data.cached ? '<span style="color:var(--success)"><i class="fa-solid fa-bolt"></i> كاش سريع</span>' : '<i class="fa-solid fa-globe"></i> استخراج حي';
 
             // البيانات الأساسية
-            elements.videoTitle.textContent = data.title;
-            elements.videoId.textContent = data.video_id;
-
-            // الشارات (Badges)
-            elements.videoBadges.innerHTML = '';
-            if (data.duration > 0) {
-                const durationBadge = document.createElement('span');
-                durationBadge.className = 'info-badge';
-                // تحويل الثواني لدقائق
-                const minutes = Math.floor(data.duration / 60);
-                const seconds = data.duration % 60;
-                durationBadge.textContent = `⏱️ ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-                elements.videoBadges.appendChild(durationBadge);
-            }
+            document.getElementById('res-title').textContent = data.title;
+            
+            // الشارات
+            const badges = document.getElementById('res-badges');
+            badges.innerHTML = `<span class="badge">ID: ${data.video_id}</span>`;
             if (data.is_live) {
-                const liveBadge = document.createElement('span');
-                liveBadge.className = 'info-badge';
-                liveBadge.style.background = 'rgba(239, 68, 68, 0.1)';
-                liveBadge.style.color = 'var(--danger)';
-                liveBadge.textContent = '🔴 بث مباشر';
-                elements.videoBadges.appendChild(liveBadge);
+                badges.innerHTML += `<span class="badge" style="background: rgba(239,68,68,0.1); color: var(--danger);">🔴 بث مباشر</span>`;
+            } else if (data.duration > 0) {
+                const m = Math.floor(data.duration / 60);
+                const s = data.duration % 60;
+                badges.innerHTML += `<span class="badge">⏱️ ${m}:${s < 10 ? '0'+s : s}</span>`;
             }
 
-            // بناء المشغل (Player)
-            elements.playerContainer.innerHTML = ''; // تنظيف القديم
+            // المشغل السينمائي الأسود
+            const playerWrapper = document.getElementById('player-wrapper');
+            playerWrapper.innerHTML = '';
             
-            // إضافة صورة الغلاف كخلفية للمشغل
+            let posterUrl = '';
             if (data.thumbnails && data.thumbnails.length > 0) {
-                const thumbUrl = data.thumbnails[data.thumbnails.length - 1].url;
-                elements.playerContainer.style.backgroundImage = `url('${thumbUrl}')`;
-                elements.playerContainer.style.backgroundSize = 'cover';
-                elements.playerContainer.style.backgroundPosition = 'center';
+                posterUrl = data.thumbnails[data.thumbnails.length - 1].url;
             }
 
-            const mediaTag = document.createElement(isAudioOnly ? 'audio' : 'video');
-            mediaTag.controls = true;
-            mediaTag.src = data.direct_stream_url;
-            mediaTag.style.width = '100%';
-            mediaTag.style.height = '100%';
-            mediaTag.style.backgroundColor = isAudioOnly ? 'rgba(0,0,0,0.7)' : 'transparent';
+            const mediaEl = document.createElement(isAudioOnly && !data.is_live ? 'audio' : 'video');
+            mediaEl.controls = true;
+            mediaEl.src = data.direct_stream_url;
+            mediaEl.poster = posterUrl; // صورة الغلاف تظهر قبل التشغيل
             
-            elements.playerContainer.appendChild(mediaTag);
-
-            // بناء جدول الجودات
-            elements.streamsTableBody.innerHTML = '';
-            if (data.fallback_streams && data.fallback_streams.length > 0) {
-                data.fallback_streams.forEach(stream => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td style="font-family: monospace;">${stream.format_id}</td>
-                        <td>${stream.ext}</td>
-                        <td>${stream.resolution}</td>
-                        <td>${stream.vcodec}</td>
-                        <td>${stream.acodec}</td>
-                        <td><a href="${stream.url}" target="_blank" class="link-btn" download>تحميل / تشغيل</a></td>
-                    `;
-                    elements.streamsTableBody.appendChild(tr);
-                });
+            // لو كان صوت فقط، نعرض الصورة كخلفية للمربع الأسود
+            if (isAudioOnly && posterUrl) {
+                playerWrapper.style.backgroundImage = `url('${posterUrl}')`;
+                playerWrapper.style.backgroundSize = 'contain';
+                playerWrapper.style.backgroundPosition = 'center';
+                playerWrapper.style.backgroundRepeat = 'no-repeat';
+                mediaEl.style.background = 'rgba(0,0,0,0.6)'; // تغميق خفيف فوق الصورة
             } else {
-                elements.streamsTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد روابط بديلة</td></tr>';
+                playerWrapper.style.backgroundImage = 'none';
             }
 
-            // إظهار القسم بأنيميشن
-            elements.resultsContainer.classList.add('visible');
-            
-            // التمرير السلس للنتائج
-            setTimeout(() => {
-                elements.resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }, 100);
+            playerWrapper.appendChild(mediaEl);
+
+            // تعبئة الجداول الذكية
+            populateTable('table-muxed', 'sec-muxed', data.smart_formats.best_muxed);
+            populateTable('table-audio', 'sec-audio', data.smart_formats.audio_only, true);
+            populateTable('table-video', 'sec-video', data.smart_formats.video_only);
+
+            // إظهار النتائج
+            document.getElementById('results-area').style.display = 'block';
+            document.getElementById('results-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        // 4. دالة عرض الأخطاء
-        function showError(msg) {
-            elements.errorMsg.textContent = msg;
-            elements.errorMsg.style.display = 'block';
-        }
+        // دالة مساعدة لتعبئة الجداول
+        function populateTable(tableId, secId, formats, isAudio = false) {
+            const tbody = document.querySelector(`#${tableId} tbody`);
+            const sec = document.getElementById(secId);
+            tbody.innerHTML = '';
 
-        // تفعيل الفحص عند تحميل الصفحة
-        window.addEventListener('DOMContentLoaded', checkServerStatus);
-
-        // دعم الضغط على Enter في حقل الإدخال
-        elements.urlInput.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                startExtraction();
+            if (!formats || formats.length === 0) {
+                sec.style.display = 'none';
+                return;
             }
-        });
+
+            sec.style.display = 'block';
+            formats.forEach(f => {
+                const tr = document.createElement('tr');
+                if(isAudio) {
+                    tr.innerHTML = `
+                        <td>${f.format_id}</td>
+                        <td><span style="background:var(--text-main);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem;">${f.ext}</span></td>
+                        <td dir="ltr">${f.resolution}</td>
+                        <td>${f.acodec}</td>
+                        <td><a href="${f.url}" target="_blank" class="btn-download"><i class="fa-solid fa-play"></i> تشغيل</a></td>
+                    `;
+                } else {
+                    tr.innerHTML = `
+                        <td>${f.format_id}</td>
+                        <td><span style="background:var(--text-main);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem;">${f.ext}</span></td>
+                        <td dir="ltr" style="font-weight:800;color:var(--accent);">${f.resolution}</td>
+                        <td>${f.vcodec}</td>
+                        ${tableId === 'table-muxed' ? `<td>${f.acodec}</td>` : ''}
+                        <td><a href="${f.url}" target="_blank" class="btn-download"><i class="fa-solid fa-play"></i> تشغيل</a></td>
+                    `;
+                }
+                tbody.appendChild(tr);
+            });
+        }
     </script>
 </body>
 </html>
