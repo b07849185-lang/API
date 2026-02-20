@@ -1,0 +1,650 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TitanOS - Liquid Glass Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        /* ==========================================================================
+           1. المتغيرات وإعدادات الـ 120FPS (تقنيات 2026)
+           ========================================================================== */
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-shadow: 0 8px 32px 0 rgba(135, 142, 160, 0.15);
+            --text-main: #1e293b;
+            --text-muted: #475569;
+            --accent: #3b82f6;
+            --success: #10b981;
+            --danger: #ef4444;
+            --font-ar: 'Cairo', sans-serif;
+            --font-en: 'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            /* تسريع الريندر */
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        body {
+            font-family: var(--font-ar);
+            color: var(--text-main);
+            min-height: 100vh;
+            overflow-x: hidden;
+            background-color: #f1f5f9;
+        }
+
+        /* ==========================================================================
+           2. الخلفية السائلة (Liquid Background Animation)
+           ========================================================================== */
+        .liquid-bg {
+            position: fixed;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: -1;
+            overflow: hidden;
+            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+        }
+
+        .blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.7;
+            /* استخدام transform فقط للـ 120fps */
+            will-change: transform;
+            animation: float 15s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .blob-1 { width: 600px; height: 600px; background: #ffffff; top: -10%; left: -10%; animation-delay: 0s; }
+        .blob-2 { width: 500px; height: 500px; background: #e0f2fe; bottom: -20%; right: -10%; animation-delay: -5s; }
+        .blob-3 { width: 400px; height: 400px; background: #f8fafc; top: 40%; left: 40%; animation-delay: -10s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(100px, 50px) scale(1.1); }
+        }
+
+        /* ==========================================================================
+           3. تأثير الزجاج (Glassmorphism Components)
+           ========================================================================== */
+        .glass-panel {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px) saturate(150%);
+            -webkit-backdrop-filter: blur(20px) saturate(150%);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: var(--glass-shadow);
+            padding: 2rem;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+            will-change: transform, box-shadow;
+        }
+
+        .glass-panel:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 40px 0 rgba(135, 142, 160, 0.2);
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        /* ==========================================================================
+           4. واجهة المستخدم (Header & Inputs)
+           ========================================================================== */
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: linear-gradient(45deg, #1e293b, #3b82f6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .status-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 50px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+            box-shadow: 0 0 10px currentColor;
+        }
+        .status-dot.online { background: var(--success); }
+        .status-dot.offline { background: var(--danger); }
+
+        .input-group {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .url-input {
+            width: 100%;
+            padding: 1.2rem 1.5rem;
+            font-size: 1.1rem;
+            font-family: var(--font-en);
+            background: rgba(255, 255, 255, 0.6);
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            border-radius: 16px;
+            color: var(--text-main);
+            outline: none;
+            transition: all 0.3s ease;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);
+        }
+
+        .url-input:focus {
+            border-color: var(--accent);
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.2);
+        }
+
+        .controls {
+            display: flex;
+            gap: 1.5rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .checkbox-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            font-weight: 600;
+            user-select: none;
+        }
+
+        .btn-extract {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 1rem 2.5rem;
+            font-size: 1.2rem;
+            font-family: var(--font-ar);
+            font-weight: 800;
+            border-radius: 16px;
+            cursor: pointer;
+            transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+            margin-right: auto;
+        }
+
+        .btn-extract:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+        }
+
+        .btn-extract:active {
+            transform: translateY(1px) scale(0.98);
+        }
+
+        .btn-extract:disabled {
+            background: #94a3b8;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* ==========================================================================
+           5. منطقة النتائج والإحصائيات (Results & Stats)
+           ========================================================================== */
+        #results-container {
+            margin-top: 2rem;
+            display: none;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s ease, transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        #results-container.visible {
+            display: block;
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255,255,255,0.7);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+            font-family: var(--font-en);
+            color: var(--accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            font-weight: 600;
+        }
+
+        .media-section {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        @media (min-width: 900px) {
+            .media-section { grid-template-columns: 1.5fr 1fr; }
+        }
+
+        .player-wrapper {
+            width: 100%;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #000;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            aspect-ratio: 16/9;
+        }
+
+        video, audio {
+            width: 100%;
+            height: 100%;
+            outline: none;
+        }
+
+        .video-info h2 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            line-height: 1.4;
+        }
+
+        .info-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 8px;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--accent);
+            font-weight: 600;
+            font-size: 0.85rem;
+            margin-left: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* ==========================================================================
+           6. الجداول (Tables)
+           ========================================================================== */
+        .table-wrapper {
+            overflow-x: auto;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid var(--glass-border);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-family: var(--font-en);
+            font-size: 0.95rem;
+            text-align: left;
+        }
+
+        th, td {
+            padding: 1rem;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        th {
+            background: rgba(255,255,255,0.6);
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            font-size: 0.8rem;
+        }
+
+        td { color: var(--text-main); font-weight: 500; }
+
+        tr:last-child td { border-bottom: none; }
+
+        tr:hover td { background: rgba(255,255,255,0.8); }
+
+        .link-btn {
+            display: inline-block;
+            padding: 0.4rem 1rem;
+            background: var(--text-main);
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            transition: opacity 0.2s;
+        }
+        .link-btn:hover { opacity: 0.8; }
+
+        /* Loader */
+        .loader {
+            display: none;
+            width: 48px;
+            height: 48px;
+            border: 5px solid rgba(59, 130, 246, 0.2);
+            border-bottom-color: var(--accent);
+            border-radius: 50%;
+            animation: rotation 1s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes rotation { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    </style>
+</head>
+<body>
+
+    <div class="liquid-bg">
+        <div class="blob blob-1"></div>
+        <div class="blob blob-2"></div>
+        <div class="blob blob-3"></div>
+    </div>
+
+    <div class="container">
+        <header>
+            <h1>TitanOS</h1>
+            <div class="glass-panel" style="padding: 0.5rem 1.5rem; border-radius: 50px;">
+                <div class="status-badge">
+                    <span id="api-status-dot" class="status-dot"></span>
+                    <span id="api-status-text">جاري فحص السيرفر...</span>
+                </div>
+            </div>
+        </header>
+
+        <main class="glass-panel">
+            <div class="input-group">
+                <input type="url" id="media-url" class="url-input" placeholder="أدخل رابط يوتيوب هنا (مثال: https://youtu.be/...)">
+                
+                <div class="controls">
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" id="audio-only" style="width: 18px; height: 18px;" checked>
+                        استخراج صوت فقط (Audio Only)
+                    </label>
+                    <label class="checkbox-wrapper">
+                        <input type="checkbox" id="force-refresh" style="width: 18px; height: 18px;">
+                        تجاهل الكاش (Force Refresh)
+                    </label>
+                    <button id="extract-btn" class="btn-extract" onclick="startExtraction()">استخراج الآن</button>
+                </div>
+            </div>
+            <div id="loader" class="loader"></div>
+            <div id="error-message" style="color: var(--danger); font-weight: bold; margin-top: 1rem; text-align: center; display: none;"></div>
+        </main>
+
+        <section id="results-container">
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-time">0 ms</div>
+                    <div class="stat-label">سرعة الاستخراج</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-method" style="font-size: 1.1rem; line-height: 1.4;">-</div>
+                    <div class="stat-label">المحرك المستخدم</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="stat-cache">-</div>
+                    <div class="stat-label">حالة الكاش</div>
+                </div>
+            </div>
+
+            <div class="glass-panel media-section">
+                <div class="player-wrapper" id="player-container">
+                    </div>
+                <div class="video-info">
+                    <h2 id="video-title">عنوان الفيديو يظهر هنا</h2>
+                    <div id="video-badges"></div>
+                    <p style="margin-top: 1rem; color: var(--text-muted); font-size: 0.9rem;">
+                        <strong>ID:</strong> <span id="video-id" style="font-family: var(--font-en);"></span>
+                    </p>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <h3 style="margin-bottom: 1.5rem; color: var(--text-muted);">الروابط الاحتياطية والجودات (Fallback Streams)</h3>
+                <div class="table-wrapper">
+                    <table id="streams-table">
+                        <thead>
+                            <tr>
+                                <th>Format ID</th>
+                                <th>Ext</th>
+                                <th>Resolution</th>
+                                <th>Video Codec</th>
+                                <th>Audio Codec</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            </ul>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script>
+        // ==========================================
+        // إعدادات الـ API (اربطها بسيرفرك)
+        // ==========================================
+        const API_BASE_URL = 'https://api-rskcpw.fly.dev'; // رابط السيرفر بتاعك
+        const API_KEY = 'Titan_2026_Ultra_Fast';           // كلمة السر
+
+        // العناصر
+        const elements = {
+            statusDot: document.getElementById('api-status-dot'),
+            statusText: document.getElementById('api-status-text'),
+            urlInput: document.getElementById('media-url'),
+            audioOnly: document.getElementById('audio-only'),
+            forceRefresh: document.getElementById('force-refresh'),
+            extractBtn: document.getElementById('extract-btn'),
+            loader: document.getElementById('loader'),
+            errorMsg: document.getElementById('error-message'),
+            resultsContainer: document.getElementById('results-container'),
+            statTime: document.getElementById('stat-time'),
+            statMethod: document.getElementById('stat-method'),
+            statCache: document.getElementById('stat-cache'),
+            playerContainer: document.getElementById('player-container'),
+            videoTitle: document.getElementById('video-title'),
+            videoBadges: document.getElementById('video-badges'),
+            videoId: document.getElementById('video-id'),
+            streamsTableBody: document.querySelector('#streams-table tbody')
+        };
+
+        // 1. فحص حالة السيرفر عند التحميل
+        async function checkServerStatus() {
+            try {
+                const response = await fetch(`${API_BASE_URL}/`);
+                if (response.ok) {
+                    elements.statusDot.className = 'status-dot online';
+                    elements.statusText.textContent = 'السيرفر متصل (Operational)';
+                    elements.statusText.style.color = 'var(--success)';
+                } else {
+                    throw new Error('Server returned non-200');
+                }
+            } catch (error) {
+                elements.statusDot.className = 'status-dot offline';
+                elements.statusText.textContent = 'السيرفر غير متصل';
+                elements.statusText.style.color = 'var(--danger)';
+            }
+        }
+
+        // 2. دالة الاستخراج الرئيسية
+        async function startExtraction() {
+            const url = elements.urlInput.value.trim();
+            if (!url) {
+                showError('يرجى إدخال رابط يوتيوب صحيح.');
+                return;
+            }
+
+            // تجهيز الواجهة للتحميل
+            elements.errorMsg.style.display = 'none';
+            elements.resultsContainer.classList.remove('visible');
+            elements.loader.style.display = 'block';
+            elements.extractBtn.disabled = true;
+            elements.extractBtn.textContent = 'جاري المعالجة...';
+
+            const audioOnly = elements.audioOnly.checked;
+            const forceRefresh = elements.forceRefresh.checked;
+
+            try {
+                // بناء الرابط
+                const apiUrl = `${API_BASE_URL}/api/v1/extract?url=${encodeURIComponent(url)}&audio_only=${audioOnly}&force_refresh=${forceRefresh}`;
+
+                // إرسال الطلب للسيرفر
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'X-Titan-Key': API_KEY,
+                        'Accept': 'application/json'
+                    }
+                });
+
+                const data = await response.json();
+
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || `HTTP Error: ${response.status}`);
+                }
+
+                // عرض النتائج
+                renderResults(data, audioOnly);
+
+            } catch (error) {
+                showError(`حدث خطأ أثناء الاستخراج: ${error.message}`);
+            } finally {
+                // إعادة الواجهة لطبيعتها
+                elements.loader.style.display = 'none';
+                elements.extractBtn.disabled = false;
+                elements.extractBtn.textContent = 'استخراج الآن';
+            }
+        }
+
+        // 3. دالة عرض النتائج في الواجهة
+        function renderResults(data, isAudioOnly) {
+            // الإحصائيات
+            elements.statTime.textContent = `${data.process_time_ms} ms`;
+            elements.statMethod.textContent = data.extraction_method;
+            elements.statCache.textContent = data.cached ? 'مأخوذ من الكاش ⚡' : 'سحب مباشر 🌐';
+            elements.statCache.style.color = data.cached ? 'var(--success)' : 'var(--text-main)';
+
+            // البيانات الأساسية
+            elements.videoTitle.textContent = data.title;
+            elements.videoId.textContent = data.video_id;
+
+            // الشارات (Badges)
+            elements.videoBadges.innerHTML = '';
+            if (data.duration > 0) {
+                const durationBadge = document.createElement('span');
+                durationBadge.className = 'info-badge';
+                // تحويل الثواني لدقائق
+                const minutes = Math.floor(data.duration / 60);
+                const seconds = data.duration % 60;
+                durationBadge.textContent = `⏱️ ${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+                elements.videoBadges.appendChild(durationBadge);
+            }
+            if (data.is_live) {
+                const liveBadge = document.createElement('span');
+                liveBadge.className = 'info-badge';
+                liveBadge.style.background = 'rgba(239, 68, 68, 0.1)';
+                liveBadge.style.color = 'var(--danger)';
+                liveBadge.textContent = '🔴 بث مباشر';
+                elements.videoBadges.appendChild(liveBadge);
+            }
+
+            // بناء المشغل (Player)
+            elements.playerContainer.innerHTML = ''; // تنظيف القديم
+            
+            // إضافة صورة الغلاف كخلفية للمشغل
+            if (data.thumbnails && data.thumbnails.length > 0) {
+                const thumbUrl = data.thumbnails[data.thumbnails.length - 1].url;
+                elements.playerContainer.style.backgroundImage = `url('${thumbUrl}')`;
+                elements.playerContainer.style.backgroundSize = 'cover';
+                elements.playerContainer.style.backgroundPosition = 'center';
+            }
+
+            const mediaTag = document.createElement(isAudioOnly ? 'audio' : 'video');
+            mediaTag.controls = true;
+            mediaTag.src = data.direct_stream_url;
+            mediaTag.style.width = '100%';
+            mediaTag.style.height = '100%';
+            mediaTag.style.backgroundColor = isAudioOnly ? 'rgba(0,0,0,0.7)' : 'transparent';
+            
+            elements.playerContainer.appendChild(mediaTag);
+
+            // بناء جدول الجودات
+            elements.streamsTableBody.innerHTML = '';
+            if (data.fallback_streams && data.fallback_streams.length > 0) {
+                data.fallback_streams.forEach(stream => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td style="font-family: monospace;">${stream.format_id}</td>
+                        <td>${stream.ext}</td>
+                        <td>${stream.resolution}</td>
+                        <td>${stream.vcodec}</td>
+                        <td>${stream.acodec}</td>
+                        <td><a href="${stream.url}" target="_blank" class="link-btn" download>تحميل / تشغيل</a></td>
+                    `;
+                    elements.streamsTableBody.appendChild(tr);
+                });
+            } else {
+                elements.streamsTableBody.innerHTML = '<tr><td colspan="6" style="text-align:center;">لا توجد روابط بديلة</td></tr>';
+            }
+
+            // إظهار القسم بأنيميشن
+            elements.resultsContainer.classList.add('visible');
+            
+            // التمرير السلس للنتائج
+            setTimeout(() => {
+                elements.resultsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
+        }
+
+        // 4. دالة عرض الأخطاء
+        function showError(msg) {
+            elements.errorMsg.textContent = msg;
+            elements.errorMsg.style.display = 'block';
+        }
+
+        // تفعيل الفحص عند تحميل الصفحة
+        window.addEventListener('DOMContentLoaded', checkServerStatus);
+
+        // دعم الضغط على Enter في حقل الإدخال
+        elements.urlInput.addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                startExtraction();
+            }
+        });
+    </script>
+</body>
+</html>
