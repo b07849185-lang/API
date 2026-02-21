@@ -21,21 +21,21 @@ import (
 )
 
 var (
-	API_KEY           = getEnv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
-	COOKIE_DIR        = getEnv("TITAN_COOKIE_DIR", "cookies")
-	CACHE_TTL         = getEnvInt("CACHE_TTL", 14400)
-	COOKIE_BAN_TIME   = int64(getEnvInt("COOKIE_BAN_TIME", 3600))
-	IMPERSONATE_TARGET= getEnv("YT_IMPERSONATE_TARGET", "chrome")
-	YT_DLP_BIN        = getEnv("YT_DLP_BIN", "yt-dlp")
+	API_KEY            = getEnv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
+	COOKIE_DIR         = getEnv("TITAN_COOKIE_DIR", "cookies")
+	CACHE_TTL          = getEnvInt("CACHE_TTL", 14400)
+	COOKIE_BAN_TIME    = int64(getEnvInt("COOKIE_BAN_TIME", 3600))
+	IMPERSONATE_TARGET = getEnv("YT_IMPERSONATE_TARGET", "chrome")
+	YT_DLP_BIN         = getEnv("YT_DLP_BIN", "yt-dlp")
 )
 
 type APIStats struct {
-	TotalRequests         int64
-	SuccessfulRequests    int64
-	FailedRequests        int64
-	ActiveWsConnections   int64
-	ServerStartTime       time.Time
-	mu                    sync.RWMutex
+	TotalRequests       int64
+	SuccessfulRequests  int64
+	FailedRequests      int64
+	ActiveWsConnections int64
+	ServerStartTime     time.Time
+	mu                  sync.RWMutex
 }
 
 var stats = &APIStats{ServerStartTime: time.Now()}
@@ -151,6 +151,22 @@ func (c *MemoryCache) Cleanup() {
 	}
 }
 
+func (c *MemoryCache) Count() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.items)
+}
+
+func (c *MemoryCache) GetAllItems() map[string]CacheItem {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	copyMap := make(map[string]CacheItem)
+	for k, v := range c.items {
+		copyMap[k] = v
+	}
+	return copyMap
+}
+
 type EnterpriseCookieManager struct {
 	Directory  string
 	Pool       []string
@@ -229,6 +245,12 @@ func (cm *EnterpriseCookieManager) ReportFailure(cookie string) {
 	}
 }
 
+func (cm *EnterpriseCookieManager) Count() int {
+	cm.mu.Lock()
+	defer cm.mu.Unlock()
+	return len(cm.Pool)
+}
+
 func execCmd(timeout time.Duration, name string, args ...string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
@@ -252,23 +274,23 @@ func extractSmart(rawQuery string) (map[string]interface{}, string, error) {
 	for attempt := 1; attempt <= 3; attempt++ {
 		cookie := cookieVault.GetCookie()
 		methodUsed := ""
-		args := []string{"--dump-json", "--no-warnings", "--skip-download", "--no-playlist", "--default-search", "ytsearch"}
-		
+		args := []string{"--dump-json", "--no-warnings", "--skip-download", "--no-playlist"}
+
 		if cookie != "" {
 			args = append(args, "--cookies", cookie)
 		}
 
 		if attempt == 1 {
-			methodUsed = "CLI (Web Client + EJS)"
-			args = append(args, "--extractor-args", "youtube:player_client=web", "--remote-components", "ejs:github", "--socket-timeout", "8")
+			methodUsed = "CLI Fast (CFFI + EJS + Android/Web)"
+			args = append(args, "--impersonate", IMPERSONATE_TARGET, "--extractor-args", "youtube:player_client=android,web;player_skip=webpage,configs", "--remote-components", "ejs:github", "--socket-timeout", "5", "--retries", "0")
 		} else if attempt == 2 {
-			methodUsed = "CLI (Android Fallback)"
-			args = append(args, "--extractor-args", "youtube:player_client=android;player_skip=configs", "--socket-timeout", "10")
+			methodUsed = "CLI Fallback (CFFI + Android)"
+			args = append(args, "--impersonate", IMPERSONATE_TARGET, "--extractor-args", "youtube:player_client=android;player_skip=webpage,configs", "--socket-timeout", "8", "--retries", "1")
 		} else {
-			methodUsed = "CLI (Web Last Resort)"
-			args = append(args, "--extractor-args", "youtube:player_client=web", "--socket-timeout", "12")
+			methodUsed = "CLI Standard (Web + EJS)"
+			args = append(args, "--extractor-args", "youtube:player_client=web", "--remote-components", "ejs:github", "--socket-timeout", "10", "--retries", "2")
 		}
-		
+
 		args = append(args, query)
 
 		out, err := execCmd(15*time.Second, YT_DLP_BIN, args...)
@@ -276,7 +298,8 @@ func extractSmart(rawQuery string) (map[string]interface{}, string, error) {
 			var info map[string]interface{}
 			lines := strings.Split(string(out), "\n")
 			for _, line := range lines {
-				if strings.HasPrefix(strings.TrimSpace(line), "{") {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "{") {
 					if json.Unmarshal([]byte(line), &info) == nil {
 						if entries, ok := info["entries"].([]interface{}); ok && len(entries) > 0 {
 							if firstEntry, ok2 := entries[0].(map[string]interface{}); ok2 {
@@ -290,12 +313,12 @@ func extractSmart(rawQuery string) (map[string]interface{}, string, error) {
 				}
 			}
 		}
-		
+
 		lastErr = fmt.Errorf("attempt %d failed", attempt)
 		if cookie != "" && err != nil && (strings.Contains(strings.ToLower(err.Error()), "sign in") || strings.Contains(strings.ToLower(err.Error()), "bot")) {
 			cookieVault.ReportFailure(cookie)
 		}
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(200 * time.Millisecond)
 	}
 	return nil, "", fmt.Errorf("Extraction failed: %v", lastErr)
 }
@@ -321,17 +344,23 @@ func buildSmartFormats(formatsList []interface{}) (SmartFormats, string, string)
 		}
 
 		vcodec, _ := f["vcodec"].(string)
-		if vcodec == "" { vcodec = "none" }
+		if vcodec == "" {
+			vcodec = "none"
+		}
 		acodec, _ := f["acodec"].(string)
-		if acodec == "" { acodec = "none" }
+		if acodec == "" {
+			acodec = "none"
+		}
 		urlStr, _ := f["url"].(string)
 		if urlStr == "" {
 			continue
 		}
 
 		fmtID, _ := f["format_id"].(string)
-		if fmtID == "" { fmtID = "0" }
-		
+		if fmtID == "" {
+			fmtID = "0"
+		}
+
 		res := "unknown"
 		if note, ok := f["format_note"].(string); ok && note != "" {
 			res = note
@@ -373,9 +402,11 @@ func buildSmartFormats(formatsList []interface{}) (SmartFormats, string, string)
 	sort.Slice(sf.AudioOnly, func(i, j int) bool { return sf.AudioOnly[i].QualityScore > sf.AudioOnly[j].QualityScore })
 	sort.Slice(sf.VideoOnly, func(i, j int) bool { return sf.VideoOnly[i].QualityScore > sf.VideoOnly[j].QualityScore })
 
-	if len(sf.AudioOnly) > 0 { bestA = sf.AudioOnly[0].URL }
-	if len(sf.BestMuxed) > 0 { 
-		bestV = sf.BestMuxed[0].URL 
+	if len(sf.AudioOnly) > 0 {
+		bestA = sf.AudioOnly[0].URL
+	}
+	if len(sf.BestMuxed) > 0 {
+		bestV = sf.BestMuxed[0].URL
 	} else if len(sf.VideoOnly) > 0 {
 		bestV = sf.VideoOnly[0].URL
 	}
@@ -385,16 +416,47 @@ func buildSmartFormats(formatsList []interface{}) (SmartFormats, string, string)
 
 func verifyAuth(r *http.Request) bool {
 	key := r.Header.Get("X-Titan-Key")
+	if key == "" {
+		key = r.Header.Get("X-Ultra-Key")
+	}
 	return key == API_KEY
 }
 
+func setCORS(w http.ResponseWriter) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "X-Titan-Key, X-Ultra-Key, Content-Type, Accept")
+}
+
 func getMemoryUsage() string {
-	return "Available via OS tools in Go" 
+	content, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return "Unknown"
+	}
+	lines := strings.Split(string(content), "\n")
+	var total, free int
+	for _, line := range lines {
+		if strings.HasPrefix(line, "MemTotal:") {
+			fmt.Sscanf(line, "MemTotal: %d kB", &total)
+		} else if strings.HasPrefix(line, "MemAvailable:") {
+			fmt.Sscanf(line, "MemAvailable: %d kB", &free)
+		}
+	}
+	if total > 0 {
+		used := total - free
+		return fmt.Sprintf("%.2f MB / %.2f MB", float64(used)/1024.0, float64(total)/1024.0)
+	}
+	return "Unknown"
 }
 
 func extractHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 
 	if !verifyAuth(r) {
 		w.WriteHeader(http.StatusForbidden)
@@ -452,13 +514,31 @@ func extractHandler(w http.ResponseWriter, r *http.Request) {
 
 	directURL := ""
 	if audioOnly {
-		if bestA != "" { directURL = bestA } else { directURL = bestV }
+		if bestA != "" {
+			directURL = bestA
+		} else {
+			directURL = bestV
+		}
 	} else {
-		if bestV != "" { directURL = bestV } else { directURL = bestA }
+		if bestV != "" {
+			directURL = bestV
+		} else {
+			directURL = bestA
+		}
 	}
 
 	if directURL == "" {
-		if u, ok := info["url"].(string); ok { directURL = u }
+		if u, ok := info["url"].(string); ok {
+			directURL = u
+		}
+	}
+
+	if directURL == "" && len(rawFormats) > 0 {
+		if lastFmt, ok := rawFormats[len(rawFormats)-1].(map[string]interface{}); ok {
+			if u, ok := lastFmt["url"].(string); ok {
+				directURL = u
+			}
+		}
 	}
 
 	if directURL == "" {
@@ -469,14 +549,36 @@ func extractHandler(w http.ResponseWriter, r *http.Request) {
 
 	dur := 0
 	isLive := false
-	if l, ok := info["is_live"].(bool); ok && l { isLive = true }
+	if l, ok := info["is_live"].(bool); ok && l {
+		isLive = true
+	}
 	if !isLive {
-		if d, ok := info["duration"].(float64); ok { dur = int(d) }
+		if d, ok := info["duration"].(float64); ok {
+			dur = int(d)
+		}
 	}
 
 	vidID, _ := info["id"].(string)
 	title, _ := info["title"].(string)
-	if title == "" { title = "Unknown" }
+	if title == "" {
+		title = "Unknown"
+	}
+
+	var thumbs []ThumbnailModel
+	if tList, ok := info["thumbnails"].([]interface{}); ok {
+		for _, tRaw := range tList {
+			if tmap, ok := tRaw.(map[string]interface{}); ok {
+				tURL, _ := tmap["url"].(string)
+				w, _ := tmap["width"].(float64)
+				h, _ := tmap["height"].(float64)
+				thumbs = append(thumbs, ThumbnailModel{URL: tURL, Width: int(w), Height: int(h)})
+			}
+		}
+	}
+
+	if len(thumbs) > 1 {
+		thumbs = []ThumbnailModel{thumbs[len(thumbs)-1]}
+	}
 
 	resp := MediaResponse{
 		Success:          true,
@@ -487,6 +589,7 @@ func extractHandler(w http.ResponseWriter, r *http.Request) {
 		Title:            title,
 		Duration:         dur,
 		IsLive:           isLive,
+		Thumbnails:       thumbs,
 		DirectStreamURL:  directURL,
 		SmartFormats:     smartFormats,
 		RawFallbackCount: len(rawFormats),
@@ -520,7 +623,6 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Close()
 
-	// Auth step
 	var authMsg map[string]interface{}
 	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	err = conn.ReadJSON(&authMsg)
@@ -528,7 +630,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(1008, "Unauthorized"))
 		return
 	}
-	conn.SetReadDeadline(time.Time{}) // Reset deadline
+	conn.SetReadDeadline(time.Time{})
 
 	stats.mu.Lock()
 	stats.ActiveWsConnections++
@@ -560,7 +662,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 
 		start := time.Now()
 		cacheKey := fmt.Sprintf("%s_audio:%v", url, audioOnly)
-		
+
 		stats.mu.Lock()
 		stats.TotalRequests++
 		stats.mu.Unlock()
@@ -585,25 +687,70 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		var rawFormats []interface{}
-		if f, ok := info["formats"].([]interface{}); ok { rawFormats = f }
+		if f, ok := info["formats"].([]interface{}); ok {
+			rawFormats = f
+		}
 		smartFormats, bestA, bestV := buildSmartFormats(rawFormats)
 
 		directURL := ""
 		if audioOnly {
-			if bestA != "" { directURL = bestA } else { directURL = bestV }
+			if bestA != "" {
+				directURL = bestA
+			} else {
+				directURL = bestV
+			}
 		} else {
-			if bestV != "" { directURL = bestV } else { directURL = bestA }
+			if bestV != "" {
+				directURL = bestV
+			} else {
+				directURL = bestA
+			}
 		}
-		if directURL == "" { if u, ok := info["url"].(string); ok { directURL = u } }
+		if directURL == "" {
+			if u, ok := info["url"].(string); ok {
+				directURL = u
+			}
+		}
+		if directURL == "" && len(rawFormats) > 0 {
+			if lastFmt, ok := rawFormats[len(rawFormats)-1].(map[string]interface{}); ok {
+				if u, ok := lastFmt["url"].(string); ok {
+					directURL = u
+				}
+			}
+		}
 
 		dur := 0
 		isLive := false
-		if l, ok := info["is_live"].(bool); ok && l { isLive = true }
-		if !isLive { if d, ok := info["duration"].(float64); ok { dur = int(d) } }
+		if l, ok := info["is_live"].(bool); ok && l {
+			isLive = true
+		}
+		if !isLive {
+			if d, ok := info["duration"].(float64); ok {
+				dur = int(d)
+			}
+		}
 
 		vidID, _ := info["id"].(string)
 		title, _ := info["title"].(string)
-		if title == "" { title = "Unknown" }
+		if title == "" {
+			title = "Unknown"
+		}
+
+		var thumbs []ThumbnailModel
+		if tList, ok := info["thumbnails"].([]interface{}); ok {
+			for _, tRaw := range tList {
+				if tmap, ok := tRaw.(map[string]interface{}); ok {
+					tURL, _ := tmap["url"].(string)
+					w, _ := tmap["width"].(float64)
+					h, _ := tmap["height"].(float64)
+					thumbs = append(thumbs, ThumbnailModel{URL: tURL, Width: int(w), Height: int(h)})
+				}
+			}
+		}
+
+		if len(thumbs) > 1 {
+			thumbs = []ThumbnailModel{thumbs[len(thumbs)-1]}
+		}
 
 		resp := MediaResponse{
 			Success:          true,
@@ -614,6 +761,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 			Title:            title,
 			Duration:         dur,
 			IsLive:           isLive,
+			Thumbnails:       thumbs,
 			DirectStreamURL:  directURL,
 			SmartFormats:     smartFormats,
 		}
@@ -627,13 +775,105 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func adminStatsHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if !verifyAuth(r) {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Forbidden"})
+		return
+	}
+
+	stats.mu.RLock()
+	s := *stats
+	stats.mu.RUnlock()
+
+	uptime := time.Since(s.ServerStartTime).Seconds()
+
+	response := map[string]interface{}{
+		"status":                "online",
+		"uptime_seconds":        uptime,
+		"total_requests":        s.TotalRequests,
+		"successful_requests":   s.SuccessfulRequests,
+		"failed_requests":       s.FailedRequests,
+		"active_ws_connections": s.ActiveWsConnections,
+		"cached_files_count":    cacheEngine.Count(),
+		"memory_usage":          getMemoryUsage(),
+		"available_cookies":     cookieVault.Count(),
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
+func adminClearCacheHandler(w http.ResponseWriter, r *http.Request) {
+	setCORS(w)
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	if !verifyAuth(r) {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{"message": "Forbidden"})
+		return
+	}
+
+	cacheEngine.ClearAll()
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "Cache completely cleared."})
+}
+
+func smartCacheValidator() {
+	for {
+		config.mu.RLock()
+		interval := config.ValidationIntervalSeconds
+		enabled := config.SmartValidationEnabled
+		config.mu.RUnlock()
+
+		time.Sleep(time.Duration(interval) * time.Second)
+
+		if !enabled {
+			continue
+		}
+
+		all := cacheEngine.GetAllItems()
+		client := &http.Client{Timeout: 5 * time.Second}
+
+		var keysToRemove []string
+		for k, v := range all {
+			if v.Data.DirectStreamURL != "" {
+				req, err := http.NewRequest("HEAD", v.Data.DirectStreamURL, nil)
+				if err != nil {
+					keysToRemove = append(keysToRemove, k)
+					continue
+				}
+				req.Header.Set("User-Agent", "Mozilla/5.0")
+				resp, err := client.Do(req)
+				if err != nil || resp.StatusCode == 403 || resp.StatusCode == 404 || resp.StatusCode == 410 {
+					keysToRemove = append(keysToRemove, k)
+				}
+				if resp != nil {
+					resp.Body.Close()
+				}
+			}
+		}
+
+		for _, k := range keysToRemove {
+			cacheEngine.Remove(k)
+		}
+	}
+}
+
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	if _, err := os.Stat("index.html"); err == nil {
 		http.ServeFile(w, r, "index.html")
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"system": "TitanOS Core", "status": "Active", "engine": "Go Native Engine"})
+	json.NewEncoder(w).Encode(map[string]string{"system": "TitanOS Core", "status": "Active", "engine": "Go 1.24 Native Engine"})
 }
 
 func backgroundTasks() {
@@ -662,10 +902,13 @@ func getEnvInt(key string, fallback int) int {
 
 func main() {
 	go backgroundTasks()
+	go smartCacheValidator()
 
 	http.HandleFunc("/", rootHandler)
 	http.HandleFunc("/api/v1/extract", extractHandler)
 	http.HandleFunc("/api/v1/ws/stream", wsHandler)
+	http.HandleFunc("/api/v1/admin/stats", adminStatsHandler)
+	http.HandleFunc("/api/v1/admin/clear_cache", adminClearCacheHandler)
 
 	port := getEnv("PORT", "8080")
 	fmt.Printf("Starting TitanOS Go Engine on port %s...\n", port)
