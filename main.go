@@ -238,9 +238,13 @@ func (mc *MemoryCache) ClearAll() {
 
 func executeYtDlp(query string, cookie string, attempt int) (map[string]interface{}, string, error) {
 	args := []string{
-		"--dump-json", "--no-warnings", "--skip-download", "--no-playlist",
-		"--default-search", "ytsearch", "--socket-timeout", "8",
+		"--dump-json", 
+		"--no-warnings", 
+		"--skip-download", 
+		"--no-playlist",
+		"--socket-timeout", "12",
 		"--compat-options", "no-youtube-unavailable-videos",
+		"--geo-bypass",
 	}
 
 	if cookie != "" {
@@ -249,38 +253,47 @@ func executeYtDlp(query string, cookie string, attempt int) (map[string]interfac
 
 	method := ""
 	if attempt == 1 {
-		args = append(args, "--extractor-args", "youtube:player_client=ios,web;player_skip=configs", "--remote-components", "ejs:github,ejs:npm")
-		method = "Go Fast Engine (iOS/Web)"
+		args = append(args, "--extractor-args", "youtube:player_client=web", "--remote-components", "ejs:github")
+		method = "Go Engine (Web Client)"
 	} else if attempt == 2 {
-		args = append(args, "--extractor-args", "youtube:player_client=android,web;player_skip=configs", "--remote-components", "ejs:github,ejs:npm")
-		method = "Go Fast Engine (Android/Web)"
+		args = append(args, "--extractor-args", "youtube:player_client=android,web;player_skip=configs", "--remote-components", "ejs:github")
+		method = "Go Engine (Android/Web)"
 	} else {
-		args = append(args, "--extractor-args", "youtube:player_client=web", "--remote-components", "ejs:github,ejs:npm")
-		method = "Go Fast Engine (Web Fallback)"
+		args = append(args, "--extractor-args", "youtube:player_client=web")
+		method = "Go Engine (Web Fallback)"
 	}
 
+	// تظبيط البحث عشان يقبل أي لغة (عربي أو إنجليزي)
 	if !strings.HasPrefix(query, "http") && !strings.HasPrefix(query, "ytsearch") {
 		args = append(args, "ytsearch1:"+query)
 	} else {
 		args = append(args, query)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, YtDlpBin, args...)
+	
 	var out bytes.Buffer
+	var stderr bytes.Buffer // هنا بنصطاد الأخطاء الحقيقية
 	cmd.Stdout = &out
+	cmd.Stderr = &stderr
 
 	err := cmd.Run()
 	if err != nil {
-		return nil, "", fmt.Errorf("extraction failed: %v", err)
+		errMsg := strings.TrimSpace(stderr.String())
+		if errMsg == "" {
+			errMsg = err.Error()
+		}
+		// هيرجعلك الخطأ الحقيقي اللي طالع من يوتيوب أو من yt-dlp
+		return nil, "", fmt.Errorf("YT-DLP Error: %s", errMsg) 
 	}
 
 	var result map[string]interface{}
 	err = json.Unmarshal(out.Bytes(), &result)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("JSON Parse Error: %v", err)
 	}
 
 	if entries, ok := result["entries"].([]interface{}); ok && len(entries) > 0 {
