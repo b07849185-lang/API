@@ -14,7 +14,7 @@ using json = nlohmann::json;
 class CoreEngine {
 private:
     std::string execute_cmd(const std::string& cmd) {
-        std::array<char, 2048> buffer;
+        std::array<char, 4096> buffer;
         std::string result;
         std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(cmd.c_str(), "r"), pclose);
         if (!pipe) {
@@ -30,24 +30,32 @@ public:
     CoreEngine() {}
 
     json extract_raw(const std::string& raw_query, const std::string& cookie_path, int attempt) {
-        std::string cmd = "yt-dlp --dump-json --no-warnings --skip-download --no-playlist --default-search ytsearch --socket-timeout 8 --compat-options no-youtube-unavailable-videos ";
+        std::string cmd = "yt-dlp --dump-json --no-warnings --skip-download --no-playlist "
+                          "--lazy-extractors --allowed-extractors youtube,youtube:search "
+                          "--no-check-formats --socket-timeout 5 --retries 0 "
+                          "--compat-options no-youtube-unavailable-videos ";
         
         if (!cookie_path.empty()) {
             cmd += "--cookies \"" + cookie_path + "\" ";
         }
 
-        if (attempt == 1 || attempt == 3) {
-            cmd += "--extractor-args \"youtube:player_client=web\" --remote-components ejs:github,ejs:npm ";
+        if (attempt == 1) {
+            cmd += "--impersonate chrome --extractor-args \"youtube:player_client=android,web;player_skip=webpage,configs\" --remote-components ejs:github ";
         } else if (attempt == 2) {
-            cmd += "--extractor-args \"youtube:player_client=web,android;player_skip=configs\" --remote-components ejs:github,ejs:npm ";
+            cmd += "--impersonate chrome --extractor-args \"youtube:player_client=android;player_skip=webpage,configs\" ";
+        } else {
+            cmd += "--impersonate chrome --extractor-args \"youtube:player_client=web\" --remote-components ejs:github ";
         }
 
         std::string final_query = raw_query;
         if (final_query.find("http") != 0 && final_query.find("ytsearch") != 0) {
             final_query = "ytsearch1:\"" + final_query + "\"";
+        } else if (final_query.find("ytsearch") == 0) {
+            final_query = "\"" + final_query + "\"";
         } else {
             final_query = "\"" + final_query + "\"";
         }
+        
         cmd += final_query;
 
         std::string output = execute_cmd(cmd);
@@ -57,7 +65,20 @@ public:
         }
 
         try {
-            json j = json::parse(output);
+            json j;
+            std::istringstream stream(output);
+            std::string line;
+            while (std::getline(stream, line)) {
+                if (!line.empty() && line.front() == '{') {
+                    j = json::parse(line);
+                    break;
+                }
+            }
+            
+            if (j.is_null()) {
+                throw std::runtime_error("No valid JSON found in output");
+            }
+
             if (j.contains("entries") && j["entries"].is_array() && !j["entries"].empty()) {
                 return j["entries"][0];
             }
