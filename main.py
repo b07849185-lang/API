@@ -27,7 +27,8 @@ COOKIE_DIR = os.getenv("TITAN_COOKIE_DIR", "cookies")
 MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "32"))  
 CACHE_TTL = int(os.getenv("CACHE_TTL", "14400"))
 COOKIE_BAN_TIME = int(os.getenv("COOKIE_BAN_TIME", "3600"))
-IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome110")
+# تعديل لضمان التوافق مع أي نسخة curl_cffi ومنع الخطأ 500
+IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome")
 YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")
 
 try:
@@ -197,7 +198,38 @@ class TitanExtractor:
     def __init__(self):
         self.thread_pool = ThreadPoolExecutor(max_workers=max(8, min(MAX_CONCURRENT_EXTRACTS, 128)))
         self.sema = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTS)
-        self.impersonate_supported = True 
+        self.impersonate_supported = False
+        try:
+            out = self._run_cmd_sync([YT_DLP_BIN, "--list-impersonate-targets"])
+            if out and ("chrome" in out or IMPERSONATE_TARGET in out):
+                self.impersonate_supported = True
+        except Exception:
+            pass
+
+    def _run_cmd_sync(self, cmd: List[str], timeout: int = 5) -> str:
+        try:
+            import subprocess
+            p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
+            return p.stdout.decode("utf-8", "ignore")
+        except Exception:
+            return ""
+
+    async def _exec_cmd(self, *args: str, timeout: int = 15) -> Tuple[bytes, bytes]:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+            )
+            try:
+                out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
+                return out or b"", err or b""
+            except asyncio.TimeoutError:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                return b"", b"timeout"
+        except Exception as e:
+            return b"", str(e).encode()
 
     def _sync_api_extract(self, url: str, cookie: Optional[str], attempt: int) -> dict:
         try:
@@ -216,18 +248,30 @@ class TitanExtractor:
             if self.impersonate_supported: 
                 opts["impersonate"] = IMPERSONATE_TARGET
 
+            # تم التعديل هنا: التركيز الكامل على Web عشان الكوكيز تشتغل صح
+            # وتحويل remote_components إلى List لتجنب انهيار EJS
             if attempt == 1:
-                opts["remote_components"] = "ejs:github"
-                opts["extractor_args"] = {"youtube": {"player_client": ["android", "web"], "player_skip": ["webpage", "configs"]}}
+                opts["remote_components"] = ["ejs:github", "ejs:npm"]
+                opts["extractor_args"] = {"youtube": {"player_client": ["web"]}}
             elif attempt == 2:
-                opts["extractor_args"] = {"youtube": {"player_client": ["android"], "player_skip": ["webpage", "configs"]}}
+                opts["remote_components"] = ["ejs:github", "ejs:npm"]
+                opts["extractor_args"] = {"youtube": {"player_client": ["web", "android"], "player_skip": ["configs"]}}
             else:
-                opts["remote_components"] = "ejs:github"
+                opts["remote_components"] = ["ejs:github", "ejs:npm"]
                 opts["extractor_args"] = {"youtube": {"player_client": ["web"]}}
 
             with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=False)
         except Exception as e:
+            # حماية ذكية: لو مشكلة المتصفح الوهمي حصلت، بيعيد الطلب بدونها فورا بدل Error 500
+            err_str = str(e).lower()
+            if "impersonate" in err_str or "target" in err_str:
+                opts.pop("impersonate", None)
+                try:
+                    with yt_dlp.YoutubeDL(opts) as ydl_fallback:
+                        return ydl_fallback.extract_info(url, download=False)
+                except Exception as ex:
+                    raise ex
             raise e
 
     async def extract_smart(self, raw_query: str) -> Tuple[Dict[str, Any], str]:
@@ -246,11 +290,11 @@ class TitanExtractor:
                 cookie_used = False 
                 try:
                     if attempt == 1:
-                        method_used = "In-Memory API (Android/Web + EJS)"
+                        method_used = "In-Memory API (Web Client + EJS)"
                     elif attempt == 2:
-                        method_used = "In-Memory API (Android Fast)"
+                        method_used = "In-Memory API (Web/Android Fallback + EJS)"
                     elif attempt == 3:
-                        method_used = "In-Memory API (Web Fallback + EJS)"
+                        method_used = "In-Memory API (Web Last Resort)"
 
                     if cookie: 
                         cookie_used = True
