@@ -166,12 +166,23 @@ int main() {
     std::thread(smart_validator_task).detach();
 
     app().registerHandler("/", [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
-        auto resp = HttpResponse::newHttpResponse();
-        json j = {{"system", "UltraCore"}, {"status", "Active"}, {"engine", "Zero Latency Engine"}};
-        resp->setBody(j.dump());
-        resp->setContentTypeCode(CT_APPLICATION_JSON);
-        add_cors(resp);
-        callback(resp);
+        std::ifstream file("index.html");
+        if (file.is_open()) {
+            std::stringstream buffer;
+            buffer << file.rdbuf();
+            auto resp = HttpResponse::newHttpResponse();
+            resp->setBody(buffer.str());
+            resp->setContentTypeCode(CT_TEXT_HTML);
+            add_cors(resp);
+            callback(resp);
+        } else {
+            auto resp = HttpResponse::newHttpResponse();
+            json j = {{"system", "UltraCore"}, {"status", "Active"}, {"engine", "Zero Latency Engine"}};
+            resp->setBody(j.dump());
+            resp->setContentTypeCode(CT_APPLICATION_JSON);
+            add_cors(resp);
+            callback(resp);
+        }
     });
 
     app().registerHandler("/api/v1/admin/stats", [](const HttpRequestPtr& req, std::function<void(const HttpResponsePtr&)>&& callback) {
