@@ -1,17 +1,13 @@
-خد خليه متوافق عشان يسحب ويعرض كل حاجه متوافق وهاته كامل 
 <!DOCTYPE html>
 <html lang="ar" dir="rtl" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EG Ultra Dashboard</title>
+    <title>TitanOS Ultra Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
-        /* ==========================================================================
-           1. المتغيرات الديناميكية (الوضع الفاتح والمظلم)
-           ========================================================================== */
         :root[data-theme="light"] {
             --bg-color: #f5f5f7;
             --glass-bg: rgba(255, 255, 255, 0.4);
@@ -48,164 +44,57 @@
             --input-bg: rgba(0, 0, 0, 0.5);
         }
 
-        :root {
-            --sidebar-width: 280px;
-        }
+        :root { --sidebar-width: 280px; }
 
         * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
+            box-sizing: border-box; margin: 0; padding: 0;
             font-family: 'Cairo', sans-serif;
             -webkit-tap-highlight-color: transparent;
             transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
         }
 
-        body {
-            background-color: var(--bg-color);
-            color: var(--text-main);
-            overflow-x: hidden;
-            min-height: 100vh;
-        }
+        body { background-color: var(--bg-color); color: var(--text-main); overflow-x: hidden; min-height: 100vh; }
 
-        /* ==========================================================================
-           2. الخلفية الديناميكية وتأثير الزجاج (Glassmorphism)
-           ========================================================================== */
-        .liquid-bg {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: -2;
-            background: var(--bg-color);
-            overflow: hidden;
-        }
-
-        .blob {
-            position: absolute;
-            border-radius: 50%;
-            filter: blur(100px);
-            opacity: var(--blob-opacity);
-            animation: float 20s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
-            transform: translateZ(0); 
-        }
-
+        .liquid-bg { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -2; background: var(--bg-color); overflow: hidden; }
+        .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: var(--blob-opacity); animation: float 20s infinite alternate cubic-bezier(0.4, 0, 0.2, 1); transform: translateZ(0); }
         .blob-1 { width: 50vw; height: 50vw; background: var(--blob-1); top: -10%; right: -10%; }
         .blob-2 { width: 60vw; height: 60vw; background: var(--blob-2); bottom: -20%; left: -10%; animation-delay: -5s; }
 
-        .glass-panel {
-            background: var(--glass-bg);
-            backdrop-filter: blur(25px) saturate(200%);
-            -webkit-backdrop-filter: blur(25px) saturate(200%);
-            border: 1px solid var(--glass-border);
-            border-radius: 20px;
-            box-shadow: var(--glass-shadow);
-        }
+        .glass-panel { background: var(--glass-bg); backdrop-filter: blur(25px) saturate(200%); -webkit-backdrop-filter: blur(25px) saturate(200%); border: 1px solid var(--glass-border); border-radius: 20px; box-shadow: var(--glass-shadow); }
 
-        /* ==========================================================================
-           3. شاشة القفل (Apple Login Style)
-           ========================================================================== */
-        #lock-screen {
-            position: fixed;
-            top: 0; left: 0; width: 100vw; height: 100vh;
-            background: var(--glass-bg);
-            backdrop-filter: blur(50px) saturate(200%);
-            -webkit-backdrop-filter: blur(50px) saturate(200%);
-            z-index: 9999;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            transition: transform 0.7s cubic-bezier(0.7, 0, 0.3, 1), opacity 0.6s ease;
-        }
-
+        #lock-screen { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: var(--glass-bg); backdrop-filter: blur(50px) saturate(200%); -webkit-backdrop-filter: blur(50px) saturate(200%); z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: transform 0.7s cubic-bezier(0.7, 0, 0.3, 1), opacity 0.6s ease; }
         #lock-screen.unlocked { transform: scale(1.3); opacity: 0; pointer-events: none; }
-
-        .user-avatar {
-            width: 100px; height: 100px; border-radius: 50%;
-            background: var(--text-main); color: var(--bg-color);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 2.5rem; margin-bottom: 1.5rem;
-            box-shadow: var(--glass-shadow);
-        }
-
+        .user-avatar { width: 100px; height: 100px; border-radius: 50%; background: var(--text-main); color: var(--bg-color); display: flex; align-items: center; justify-content: center; font-size: 2.5rem; margin-bottom: 1.5rem; box-shadow: var(--glass-shadow); }
         .welcome-text { font-size: 1.8rem; font-weight: 800; margin-bottom: 2rem; }
-
         .login-box { display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 300px; }
-
-        .apple-input {
-            width: 100%; padding: 1rem 1.5rem; border-radius: 14px;
-            border: 1px solid var(--glass-border);
-            background: var(--input-bg); color: var(--text-main);
-            font-size: 1.1rem; text-align: center; outline: none;
-        }
+        .apple-input { width: 100%; padding: 1rem 1.5rem; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--input-bg); color: var(--text-main); font-size: 1.1rem; text-align: center; outline: none; }
         .apple-input:focus { border-color: var(--text-main); box-shadow: 0 0 0 3px rgba(134, 134, 139, 0.2); }
-
-        .apple-btn {
-            width: 100%; padding: 1rem; border-radius: 14px;
-            background: var(--text-main); color: var(--bg-color);
-            border: none; font-size: 1.1rem; font-weight: 800;
-            cursor: pointer; transition: transform 0.2s;
-        }
+        .apple-btn { width: 100%; padding: 1rem; border-radius: 14px; background: var(--text-main); color: var(--bg-color); border: none; font-size: 1.1rem; font-weight: 800; cursor: pointer; transition: transform 0.2s; }
         .apple-btn:active { transform: scale(0.97); }
-
         #auth-error { color: var(--danger); font-size: 0.95rem; font-weight: 800; margin-top: 0.5rem; text-align: center; display: none; }
 
-        /* ==========================================================================
-           4. التطبيق الرئيسي والقوائم
-           ========================================================================== */
         #app-core { display: flex; width: 100%; min-height: 100vh; position: relative; z-index: 1; }
 
-        .sidebar {
-            width: var(--sidebar-width); height: 100vh; position: fixed; right: 0; top: 0;
-            padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;
-            z-index: 100; transition: transform 0.4s ease;
-            border-radius: 0; border-left: 1px solid var(--glass-border); border-right: none;
-        }
-
-        .sidebar-brand {
-            font-size: 2rem; font-weight: 900; color: var(--text-main);
-            display: flex; align-items: center; justify-content: space-between;
-            margin-bottom: 1rem;
-        }
-
-        .theme-btn {
-            background: none; border: none; font-size: 1.5rem;
-            color: var(--text-main); cursor: pointer; transition: transform 0.3s;
-        }
+        .sidebar { width: var(--sidebar-width); height: 100vh; position: fixed; right: 0; top: 0; padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem; z-index: 100; transition: transform 0.4s ease; border-radius: 0; border-left: 1px solid var(--glass-border); border-right: none; }
+        .sidebar-brand { font-size: 2rem; font-weight: 900; color: var(--text-main); display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
+        .theme-btn { background: none; border: none; font-size: 1.5rem; color: var(--text-main); cursor: pointer; transition: transform 0.3s; }
         .theme-btn:hover { transform: scale(1.1); }
-
         .nav-menu { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
-        .nav-item {
-            padding: 1rem 1.2rem; border-radius: 14px; cursor: pointer;
-            font-weight: 800; display: flex; align-items: center; gap: 1rem;
-            color: var(--text-muted); background: transparent;
-        }
+        .nav-item { padding: 1rem 1.2rem; border-radius: 14px; cursor: pointer; font-weight: 800; display: flex; align-items: center; gap: 1rem; color: var(--text-muted); background: transparent; }
         .nav-item.active, .nav-item:hover { background: var(--text-main); color: var(--bg-color); }
 
         .main-content { margin-right: var(--sidebar-width); width: calc(100% - var(--sidebar-width)); padding: 2.5rem; min-height: 100vh; }
-
         .top-nav { display: none; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .menu-btn { font-size: 1.5rem; background: none; border: none; cursor: pointer; color: var(--text-main); }
-
         .view-section { display: none; animation: fadeUp 0.4s ease forwards; }
         .view-section.active { display: block; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
-        /* ==========================================================================
-           5. محرك البحث والخيارات
-           ========================================================================== */
         .search-area { padding: 2rem; margin-bottom: 2rem; }
         .input-group { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
-        .search-input {
-            flex: 1; padding: 1.2rem 1.5rem; font-size: 1.1rem; font-weight: 600;
-            border-radius: 14px; border: 1px solid var(--glass-border);
-            background: var(--input-bg); color: var(--text-main); outline: none;
-        }
+        .search-input { flex: 1; padding: 1.2rem 1.5rem; font-size: 1.1rem; font-weight: 600; border-radius: 14px; border: 1px solid var(--glass-border); background: var(--input-bg); color: var(--text-main); outline: none; }
         .search-input:focus { border-color: var(--text-main); }
-        
-        .btn-extract {
-            background: var(--text-main); color: var(--bg-color); border: none; padding: 0 2.5rem;
-            border-radius: 14px; font-size: 1.1rem; font-weight: 800; cursor: pointer;
-        }
+        .btn-extract { background: var(--text-main); color: var(--bg-color); border: none; padding: 0 2.5rem; border-radius: 14px; font-size: 1.1rem; font-weight: 800; cursor: pointer; }
         .btn-extract:hover { opacity: 0.9; }
         .btn-extract:disabled { opacity: 0.5; cursor: not-allowed; }
 
@@ -213,9 +102,6 @@
         .toggle-switch { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; cursor: pointer; user-select: none; }
         .toggle-switch input { width: 20px; height: 20px; accent-color: var(--text-main); }
 
-        /* ==========================================================================
-           6. الجداول والإحصائيات
-           ========================================================================== */
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
         .stat-card { padding: 1.8rem; text-align: center; }
         .stat-card i { font-size: 2rem; color: var(--text-main); margin-bottom: 1rem; }
@@ -232,13 +118,11 @@
         .btn-action { background: var(--text-main); color: var(--bg-color); padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; border:none; cursor:pointer;}
         .btn-danger { background: var(--danger); color: white; }
 
-        /* المشغل والتحميل */
-        .player-container { background: #000; border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; width: 100%; margin-bottom: 1.5rem; }
+        .player-container { background: #000; border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; width: 100%; margin-bottom: 1.5rem; position: relative; }
         video, audio { width: 100%; height: 100%; outline: none; }
         .loader-ring { display: none; width: 35px; height: 35px; border: 4px solid rgba(134,134,139,0.2); border-top-color: var(--text-main); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 2rem auto; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* Responsive */
         @media (max-width: 768px) {
             .sidebar { transform: translateX(100%); }
             .sidebar.open { transform: translateX(0); box-shadow: -20px 0 40px rgba(0,0,0,0.5); }
@@ -251,10 +135,7 @@
 </head>
 <body>
 
-    <div class="liquid-bg">
-        <div class="blob blob-1"></div>
-        <div class="blob blob-2"></div>
-    </div>
+    <div class="liquid-bg"><div class="blob blob-1"></div><div class="blob blob-2"></div></div>
 
     <div id="lock-screen">
         <div class="user-avatar"><i class="fa-solid fa-microchip"></i></div>
@@ -372,20 +253,6 @@
                 <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; gap: 2rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem;">
                         <div>
-                            <h3 style="font-weight: 800;">المنظف الذكي</h3>
-                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">يفحص الكاش ويمسح الروابط التالفة تلقائياً.</p>
-                        </div>
-                        <label class="toggle-switch"><input type="checkbox" id="cfg-validator" checked onchange="updateServerConfig()"></label>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem;">
-                        <div>
-                            <h3 style="font-weight: 800;">استقبال WebSockets</h3>
-                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">السماح بفتح اتصالات دائمة جديدة.</p>
-                        </div>
-                        <label class="toggle-switch"><input type="checkbox" id="cfg-ws" checked onchange="updateServerConfig()"></label>
-                    </div>
-                    <div style="display: flex; justify-content: space-between; align-items: center;">
-                        <div>
                             <h3 style="font-weight: 800;">مسح الذاكرة المؤقتة</h3>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">حذف جميع البيانات من رام السيرفر.</p>
                         </div>
@@ -397,9 +264,6 @@
     </div>
 
     <script>
-        /* ==========================================================================
-           1. إعدادات الثيم (شمس وقمر)
-           ========================================================================== */
         function toggleTheme() {
             const html = document.documentElement;
             const current = html.getAttribute('data-theme');
@@ -415,15 +279,12 @@
             document.getElementById('theme-icon-mobile').className = `fa-solid ${iconClass}`;
         }
 
-        // استرجاع الثيم المحفوظ
         const savedTheme = localStorage.getItem('eg_theme') || 'light';
         document.documentElement.setAttribute('data-theme', savedTheme);
         updateThemeIcons(savedTheme);
 
-        /* ==========================================================================
-           2. الاتصال بسيرفر C++ (UltraCore)
-           ========================================================================== */
-        const API_KEY = "Ultra_2026_Fast"; // المفتاح المتطابق مع C++
+        // هنا حطينا المفتاح الصحيح اللي متسجل في سيرفر Go
+        const API_KEY = "Titan_2026_Ultra_Fast"; 
         const BASE_URL = window.location.origin;
         let wsConnection = null;
 
@@ -507,7 +368,7 @@
             } else {
                 try {
                     const res = await fetch(`${BASE_URL}/api/v1/extract?url=${encodeURIComponent(url)}&audio_only=${isAudio}&force_refresh=${refresh}`, {
-                        headers: { 'X-Ultra-Key': API_KEY, 'Accept': 'application/json' }
+                        headers: { 'X-Titan-Key': API_KEY, 'Accept': 'application/json' }
                     });
                     const data = await res.json();
                     handleExtractionResult(data);
@@ -532,20 +393,33 @@
             document.getElementById("result-display").style.display = "block";
             document.getElementById("res-title").innerText = data.title || "Unknown Title";
             document.getElementById("res-time").innerText = `${data.process_time_ms.toFixed(2)} ms`;
-            document.getElementById("res-method").innerText = data.cached ? "⚡ كاش" : "🌐 C++ Engine";
+            document.getElementById("res-method").innerText = data.cached ? "⚡ مأخوذ من الكاش" : "🌐 Go Native Engine";
             document.getElementById("res-live").innerText = data.is_live ? "بث مباشر" : "فيديو مسجل";
 
             const pBox = document.getElementById("player-box");
             pBox.innerHTML = "";
             let mediaType = "video";
             
-            if (data.smart_formats && data.smart_formats.audio_only && data.smart_formats.audio_only.length > 0 && !data.is_live && !data.direct_stream_url.includes('mp4')) {
+            const isAudioOnlyChecked = document.getElementById("opt-audio").checked;
+            if (isAudioOnlyChecked && !data.is_live && !data.direct_stream_url.includes('mp4')) {
                 mediaType = "audio";
             }
             
             const player = document.createElement(mediaType);
             player.controls = true;
             player.src = data.direct_stream_url;
+            
+            if (mediaType === "audio" && data.thumbnails && data.thumbnails.length > 0) {
+                const thumbUrl = data.thumbnails[data.thumbnails.length - 1].url;
+                pBox.style.backgroundImage = `url('${thumbUrl}')`;
+                pBox.style.backgroundSize = 'contain';
+                pBox.style.backgroundPosition = 'center';
+                pBox.style.backgroundRepeat = 'no-repeat';
+                player.style.backgroundColor = 'rgba(0,0,0,0.7)';
+            } else {
+                pBox.style.backgroundImage = 'none';
+            }
+            
             pBox.appendChild(player);
 
             const tbody = document.querySelector("#formats-table tbody");
@@ -556,18 +430,31 @@
                 allFormats = [...(data.smart_formats.best_muxed || []), ...(data.smart_formats.audio_only || []), ...(data.smart_formats.video_only || [])];
             }
 
-            allFormats.slice(0, 15).forEach(f => {
+            if (allFormats.length === 0 && data.direct_stream_url) {
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td><span class="badge-res">${f.ext || 'N/A'}</span></td>
-                    <td dir="ltr" style="font-weight:800; color:var(--text-main);">${f.resolution || 'N/A'}</td>
-                    <td>${f.vcodec !== 'none' ? f.vcodec : f.acodec}</td>
+                    <td><span class="badge-res">direct</span></td>
+                    <td dir="ltr" style="font-weight:800; color:var(--text-main);">Auto</td>
+                    <td>native</td>
                     <td>
-                        <a href="${f.url}" target="_blank" class="btn-action"><i class="fa-solid fa-download"></i></a>
+                        <a href="${data.direct_stream_url}" target="_blank" class="btn-action"><i class="fa-solid fa-download"></i></a>
                     </td>
                 `;
                 tbody.appendChild(tr);
-            });
+            } else {
+                allFormats.slice(0, 15).forEach(f => {
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td><span class="badge-res">${f.ext || 'N/A'}</span></td>
+                        <td dir="ltr" style="font-weight:800; color:var(--text-main);">${f.resolution || 'N/A'}</td>
+                        <td>${f.vcodec !== 'none' ? f.vcodec : f.acodec}</td>
+                        <td>
+                            <a href="${f.url}" target="_blank" class="btn-action"><i class="fa-solid fa-download"></i></a>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            }
 
             saveToHistory(data.title, mediaType, data.direct_stream_url);
         }
@@ -607,7 +494,8 @@
 
         async function fetchAdminStats() {
             try {
-                const res = await fetch(`${BASE_URL}/api/v1/admin/stats`, { headers: { 'X-Ultra-Key': API_KEY } });
+                const res = await fetch(`${BASE_URL}/api/v1/admin/stats`, { headers: { 'X-Titan-Key': API_KEY } });
+                if (!res.ok) return;
                 const stats = await res.json();
                 document.getElementById("stat-ws").innerText = stats.active_ws_connections || 0;
                 document.getElementById("stat-ram").innerText = stats.memory_usage || "-- MB";
@@ -619,17 +507,13 @@
         async function clearServerCache() {
             if(!confirm("مسح جميع البيانات من الرام؟")) return;
             try {
-                const res = await fetch(`${BASE_URL}/api/v1/admin/clear_cache`, { method: "POST", headers: { 'X-Ultra-Key': API_KEY } });
+                const res = await fetch(`${BASE_URL}/api/v1/admin/clear_cache`, { method: "POST", headers: { 'X-Titan-Key': API_KEY } });
                 const data = await res.json();
                 if(data.success) {
                     alert("تم تنظيف الرام.");
                     fetchAdminStats();
                 }
             } catch(e) {}
-        }
-
-        async function updateServerConfig() {
-            // (اختياري) لو عايز تفعل تغيير إعدادات C++ من الواجهة لاحقاً
         }
     </script>
 </body>
