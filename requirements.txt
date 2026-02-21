@@ -1,15 +1,7 @@
 yt-dlp
 curl_cffi
-orjson
 pycryptodomex
 mutagen
-httpx[http2,brotli]
-aiohttp
 brotli
 certifi
-fastapi
-pydantic
 websockets
-uvicorn[standard]
-uvloop
-httptools
