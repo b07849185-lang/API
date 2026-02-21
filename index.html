@@ -1,27 +1,53 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="ar" dir="rtl" data-theme="light">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>EG Dashboard</title>
+    <title>EG Ultra Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         /* ==========================================================================
-           1. المتغيرات والأساسيات (120FPS GPU Optimized)
+           1. المتغيرات الديناميكية (الوضع الفاتح والمظلم)
            ========================================================================== */
-        :root {
-            --glass-bg: rgba(255, 255, 255, 0.65);
-            --glass-border: rgba(255, 255, 255, 0.9);
-            --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+        :root[data-theme="light"] {
+            --bg-color: #f5f5f7;
+            --glass-bg: rgba(255, 255, 255, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.05);
             --text-main: #1d1d1f;
             --text-muted: #86868b;
             --accent: #000000;
             --accent-light: #333333;
             --success: #34c759;
             --danger: #ff3b30;
-            --dark-player: #000000;
+            --blob-1: #007aff;
+            --blob-2: #34c759;
+            --blob-opacity: 0.15;
+            --table-hover: rgba(255, 255, 255, 0.6);
+            --input-bg: rgba(255, 255, 255, 0.5);
+        }
+
+        :root[data-theme="dark"] {
+            --bg-color: #000000;
+            --glass-bg: rgba(20, 20, 25, 0.4);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            --text-main: #f5f5f7;
+            --text-muted: #a1a1a6;
+            --accent: #ffffff;
+            --accent-light: #cccccc;
+            --success: #30d158;
+            --danger: #ff453a;
+            --blob-1: #0a84ff;
+            --blob-2: #30d158;
+            --blob-opacity: 0.2;
+            --table-hover: rgba(255, 255, 255, 0.05);
+            --input-bg: rgba(0, 0, 0, 0.5);
+        }
+
+        :root {
             --sidebar-width: 280px;
         }
 
@@ -31,53 +57,55 @@
             padding: 0;
             font-family: 'Cairo', sans-serif;
             -webkit-tap-highlight-color: transparent;
-            will-change: transform, opacity;
+            transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
         }
 
         body {
-            background-color: #f5f5f7;
+            background-color: var(--bg-color);
             color: var(--text-main);
             overflow-x: hidden;
             min-height: 100vh;
         }
 
-        /* الخلفية الديناميكية الهادئة */
+        /* ==========================================================================
+           2. الخلفية الديناميكية وتأثير الزجاج (Glassmorphism)
+           ========================================================================== */
         .liquid-bg {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
             z-index: -2;
-            background: #ffffff;
+            background: var(--bg-color);
             overflow: hidden;
         }
 
         .blob {
             position: absolute;
             border-radius: 50%;
-            filter: blur(90px);
-            opacity: 0.5;
-            animation: float 25s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
-            transform: translateZ(0); /* فرض تسريع كارت الشاشة */
+            filter: blur(100px);
+            opacity: var(--blob-opacity);
+            animation: float 20s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0); 
         }
 
-        .blob-1 { width: 50vw; height: 50vw; background: #e2e2e8; top: -10%; right: -10%; }
-        .blob-2 { width: 60vw; height: 60vw; background: #f5f5f7; bottom: -20%; left: -10%; animation-delay: -5s; }
+        .blob-1 { width: 50vw; height: 50vw; background: var(--blob-1); top: -10%; right: -10%; }
+        .blob-2 { width: 60vw; height: 60vw; background: var(--blob-2); bottom: -20%; left: -10%; animation-delay: -5s; }
 
         .glass-panel {
             background: var(--glass-bg);
-            backdrop-filter: blur(30px) saturate(150%);
-            -webkit-backdrop-filter: blur(30px) saturate(150%);
+            backdrop-filter: blur(25px) saturate(200%);
+            -webkit-backdrop-filter: blur(25px) saturate(200%);
             border: 1px solid var(--glass-border);
             border-radius: 20px;
             box-shadow: var(--glass-shadow);
         }
 
         /* ==========================================================================
-           2. شاشة القفل (Apple Login Style)
+           3. شاشة القفل (Apple Login Style)
            ========================================================================== */
         #lock-screen {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(255, 255, 255, 0.7);
+            background: var(--glass-bg);
             backdrop-filter: blur(50px) saturate(200%);
             -webkit-backdrop-filter: blur(50px) saturate(200%);
             z-index: 9999;
@@ -85,79 +113,48 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* التأثير المطلوب: تكبير وتلاشي ليدخلك على الموقع */
             transition: transform 0.7s cubic-bezier(0.7, 0, 0.3, 1), opacity 0.6s ease;
-            transform-origin: center center;
         }
 
-        #lock-screen.unlocked {
-            transform: scale(1.3);
-            opacity: 0;
-            pointer-events: none;
-        }
+        #lock-screen.unlocked { transform: scale(1.3); opacity: 0; pointer-events: none; }
 
         .user-avatar {
-            width: 100px; height: 100px;
-            border-radius: 50%;
-            background: var(--text-main);
+            width: 100px; height: 100px; border-radius: 50%;
+            background: var(--text-main); color: var(--bg-color);
             display: flex; align-items: center; justify-content: center;
-            font-size: 2.5rem; color: white;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            font-size: 2.5rem; margin-bottom: 1.5rem;
+            box-shadow: var(--glass-shadow);
         }
 
-        .welcome-text {
-            font-size: 1.8rem; font-weight: 800; margin-bottom: 2rem;
-            letter-spacing: -0.5px;
-        }
+        .welcome-text { font-size: 1.8rem; font-weight: 800; margin-bottom: 2rem; }
 
-        .login-box {
-            display: flex; flex-direction: column; gap: 1rem;
-            width: 100%; max-width: 300px;
-        }
+        .login-box { display: flex; flex-direction: column; gap: 1rem; width: 100%; max-width: 300px; }
 
         .apple-input {
-            width: 100%; padding: 1rem 1.5rem;
-            border-radius: 14px;
-            border: 1px solid rgba(0,0,0,0.1);
-            background: rgba(255,255,255,0.8);
-            font-size: 1.1rem; text-align: center;
-            outline: none; transition: all 0.3s;
+            width: 100%; padding: 1rem 1.5rem; border-radius: 14px;
+            border: 1px solid var(--glass-border);
+            background: var(--input-bg); color: var(--text-main);
+            font-size: 1.1rem; text-align: center; outline: none;
         }
-        
-        .apple-input:focus { 
-            border-color: var(--accent); 
-            background: #fff; 
-            box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
-        }
+        .apple-input:focus { border-color: var(--text-main); box-shadow: 0 0 0 3px rgba(134, 134, 139, 0.2); }
 
         .apple-btn {
             width: 100%; padding: 1rem; border-radius: 14px;
-            background: var(--text-main); color: white;
+            background: var(--text-main); color: var(--bg-color);
             border: none; font-size: 1.1rem; font-weight: 800;
             cursor: pointer; transition: transform 0.2s;
         }
         .apple-btn:active { transform: scale(0.97); }
 
-        #auth-error { 
-            color: var(--danger); font-size: 0.95rem; font-weight: 800; 
-            margin-top: 0.5rem; text-align: center; display: none; 
-        }
+        #auth-error { color: var(--danger); font-size: 0.95rem; font-weight: 800; margin-top: 0.5rem; text-align: center; display: none; }
 
         /* ==========================================================================
-           3. التطبيق الرئيسي (Dashboard)
+           4. التطبيق الرئيسي والقوائم
            ========================================================================== */
-        #app-core {
-            display: flex;
-            width: 100%;
-            min-height: 100vh;
-            position: relative;
-            z-index: 1; /* يقبع تحت شاشة القفل */
-        }
+        #app-core { display: flex; width: 100%; min-height: 100vh; position: relative; z-index: 1; }
 
         .sidebar {
-            width: var(--sidebar-width); height: 100vh;
-            position: fixed; right: 0; top: 0;
+            width: var(--sidebar-width); height: 100vh; position: fixed; right: 0; top: 0;
             padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;
             z-index: 100; transition: transform 0.4s ease;
             border-radius: 0; border-left: 1px solid var(--glass-border); border-right: none;
@@ -165,61 +162,58 @@
 
         .sidebar-brand {
             font-size: 2rem; font-weight: 900; color: var(--text-main);
-            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
-            letter-spacing: -1px;
+            display: flex; align-items: center; justify-content: space-between;
             margin-bottom: 1rem;
         }
+
+        .theme-btn {
+            background: none; border: none; font-size: 1.5rem;
+            color: var(--text-main); cursor: pointer; transition: transform 0.3s;
+        }
+        .theme-btn:hover { transform: scale(1.1); }
 
         .nav-menu { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
         .nav-item {
             padding: 1rem 1.2rem; border-radius: 14px; cursor: pointer;
             font-weight: 800; display: flex; align-items: center; gap: 1rem;
-            transition: all 0.2s ease; color: var(--text-muted);
+            color: var(--text-muted); background: transparent;
         }
-        .nav-item.active, .nav-item:hover {
-            background: var(--text-main); color: white;
-        }
+        .nav-item.active, .nav-item:hover { background: var(--text-main); color: var(--bg-color); }
 
-        .main-content {
-            margin-right: var(--sidebar-width); width: calc(100% - var(--sidebar-width));
-            padding: 2.5rem; min-height: 100vh;
-        }
+        .main-content { margin-right: var(--sidebar-width); width: calc(100% - var(--sidebar-width)); padding: 2.5rem; min-height: 100vh; }
 
         .top-nav { display: none; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
         .menu-btn { font-size: 1.5rem; background: none; border: none; cursor: pointer; color: var(--text-main); }
 
-        /* التحكم في عرض الصفحات */
         .view-section { display: none; animation: fadeUp 0.4s ease forwards; }
         .view-section.active { display: block; }
         @keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
 
         /* ==========================================================================
-           4. محرك البحث والاستخراج
+           5. محرك البحث والخيارات
            ========================================================================== */
         .search-area { padding: 2rem; margin-bottom: 2rem; }
         .input-group { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
         .search-input {
             flex: 1; padding: 1.2rem 1.5rem; font-size: 1.1rem; font-weight: 600;
             border-radius: 14px; border: 1px solid var(--glass-border);
-            background: rgba(255,255,255,0.7); color: var(--text-main); outline: none;
-            transition: all 0.3s;
+            background: var(--input-bg); color: var(--text-main); outline: none;
         }
-        .search-input:focus { background: #fff; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: var(--text-muted); }
+        .search-input:focus { border-color: var(--text-main); }
         
         .btn-extract {
-            background: var(--text-main); color: white; border: none; padding: 0 2.5rem;
+            background: var(--text-main); color: var(--bg-color); border: none; padding: 0 2.5rem;
             border-radius: 14px; font-size: 1.1rem; font-weight: 800; cursor: pointer;
-            transition: all 0.2s; display: flex; align-items: center; gap: 0.8rem;
         }
-        .btn-extract:hover { background: var(--accent-light); }
-        .btn-extract:disabled { background: #d1d1d6; cursor: not-allowed; color: #86868b; }
+        .btn-extract:hover { opacity: 0.9; }
+        .btn-extract:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .options-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
         .toggle-switch { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; cursor: pointer; user-select: none; }
-        .toggle-switch input { width: 20px; height: 20px; accent-color: var(--text-main); cursor: pointer; }
+        .toggle-switch input { width: 20px; height: 20px; accent-color: var(--text-main); }
 
         /* ==========================================================================
-           5. الإحصائيات والمراقبة الحية
+           6. الجداول والإحصائيات
            ========================================================================== */
         .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
         .stat-card { padding: 1.8rem; text-align: center; }
@@ -227,34 +221,26 @@
         .stat-card h4 { font-size: 1rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 800;}
         .stat-card p { font-size: 2rem; font-weight: 900; font-family: 'Inter', sans-serif; color: var(--text-main); }
 
-        /* ==========================================================================
-           6. الجداول الموحدة
-           ========================================================================== */
-        .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--glass-border); margin-top: 1rem; }
-        table { width: 100%; border-collapse: collapse; background: rgba(255,255,255,0.6); text-align: right; }
-        th, td { padding: 1.2rem; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.95rem; font-weight: 600; }
-        th { background: rgba(255,255,255,0.8); color: var(--text-muted); font-weight: 800; }
-        tr:hover td { background: #ffffff; }
+        .table-wrap { overflow-x: auto; border-radius: 14px; margin-top: 1rem; }
+        table { width: 100%; border-collapse: collapse; text-align: right; }
+        th, td { padding: 1.2rem; border-bottom: 1px solid var(--glass-border); font-size: 0.95rem; font-weight: 600; }
+        th { color: var(--text-muted); font-weight: 800; }
+        tr:hover td { background: var(--table-hover); }
 
-        .badge-res { background: #f2f2f7; color: var(--text-main); padding: 4px 10px; border-radius: 6px; font-family: 'Inter'; font-size: 0.85rem; font-weight: 800; border: 1px solid #e5e5ea; }
-        .btn-action { background: var(--text-main); color: white; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; transition: transform 0.2s; border:none; cursor:pointer;}
-        .btn-action:active { transform: scale(0.95); }
+        .badge-res { background: var(--glass-border); color: var(--text-main); padding: 4px 10px; border-radius: 6px; font-family: 'Inter'; font-size: 0.85rem; font-weight: 800; }
+        .btn-action { background: var(--text-main); color: var(--bg-color); padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; border:none; cursor:pointer;}
         .btn-danger { background: var(--danger); color: white; }
 
-        /* ==========================================================================
-           7. المشغل
-           ========================================================================== */
-        .player-container { background: var(--dark-player); border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; width: 100%; margin-bottom: 1.5rem; }
+        /* المشغل والتحميل */
+        .player-container { background: #000; border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; width: 100%; margin-bottom: 1.5rem; }
         video, audio { width: 100%; height: 100%; outline: none; }
-
-        /* Loader */
-        .loader-ring { display: none; width: 35px; height: 35px; border: 4px solid rgba(0,0,0,0.1); border-top-color: var(--text-main); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 2rem auto; }
+        .loader-ring { display: none; width: 35px; height: 35px; border: 4px solid rgba(134,134,139,0.2); border-top-color: var(--text-main); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 2rem auto; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
         /* Responsive */
         @media (max-width: 768px) {
             .sidebar { transform: translateX(100%); }
-            .sidebar.open { transform: translateX(0); box-shadow: -20px 0 40px rgba(0,0,0,0.1); }
+            .sidebar.open { transform: translateX(0); box-shadow: -20px 0 40px rgba(0,0,0,0.5); }
             .main-content { margin-right: 0; width: 100%; padding: 1.5rem; }
             .top-nav { display: flex; }
             .input-group { flex-direction: column; }
@@ -270,19 +256,22 @@
     </div>
 
     <div id="lock-screen">
-        <div class="user-avatar"><i class="fa-solid fa-apple-whole"></i></div>
-        <div class="welcome-text">Welcome Abdallah</div>
+        <div class="user-avatar"><i class="fa-solid fa-microchip"></i></div>
+        <div class="welcome-text">مرحباً بك</div>
         <div class="login-box">
-            <input type="text" id="auth-user" class="apple-input" placeholder="Username" autocomplete="off">
-            <input type="password" id="auth-pass" class="apple-input" placeholder="Password">
-            <button class="apple-btn" onclick="unlockSystem()">Login</button>
-            <div id="auth-error">Incorrect Credentials</div>
+            <input type="text" id="auth-user" class="apple-input" placeholder="اسم المستخدم" autocomplete="off">
+            <input type="password" id="auth-pass" class="apple-input" placeholder="كلمة المرور">
+            <button class="apple-btn" onclick="unlockSystem()">تسجيل الدخول</button>
+            <div id="auth-error">بيانات الدخول غير صحيحة</div>
         </div>
     </div>
 
     <div id="app-core">
         <aside class="sidebar glass-panel" id="sidebar">
-            <div class="sidebar-brand">EG</div>
+            <div class="sidebar-brand">
+                <span>EG Ultra</span>
+                <button class="theme-btn" onclick="toggleTheme()"><i class="fa-solid fa-moon" id="theme-icon"></i></button>
+            </div>
             <ul class="nav-menu">
                 <li class="nav-item active" onclick="switchView('home', this)"><i class="fa-solid fa-bolt"></i> المحرك</li>
                 <li class="nav-item" onclick="switchView('stats', this)"><i class="fa-solid fa-chart-simple"></i> المراقبة</li>
@@ -295,12 +284,15 @@
         <main class="main-content">
             <nav class="top-nav">
                 <h2 style="font-weight: 900;">EG</h2>
-                <button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fa-solid fa-bars"></i></button>
+                <div>
+                    <button class="theme-btn" style="margin-left: 1rem;" onclick="toggleTheme()"><i class="fa-solid fa-moon" id="theme-icon-mobile"></i></button>
+                    <button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fa-solid fa-bars"></i></button>
+                </div>
             </nav>
 
             <section id="view-home" class="view-section active">
                 <div class="search-area glass-panel">
-                    <h2 style="margin-bottom: 1.5rem; font-weight: 900;">EG Engine</h2>
+                    <h2 style="margin-bottom: 1.5rem; font-weight: 900;">Ultra Engine</h2>
                     <div class="input-group">
                         <input type="text" id="media-url" class="search-input" placeholder="أدخل الرابط أو كلمة البحث هنا...">
                         <button id="btn-submit" class="btn-extract" onclick="requestExtraction()">استخراج</button>
@@ -335,7 +327,7 @@
             </section>
 
             <section id="view-stats" class="view-section">
-                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">مراقبة النظام</h2>
+                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">مراقبة السيرفر</h2>
                 <div class="stats-grid">
                     <div class="stat-card glass-panel">
                         <i class="fa-solid fa-network-wired"></i>
@@ -375,25 +367,22 @@
             </section>
 
             <section id="view-settings" class="view-section">
-                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">إعدادات EG</h2>
+                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">إعدادات السيرفر</h2>
                 <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; gap: 2rem;">
-                    
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem;">
                         <div>
                             <h3 style="font-weight: 800;">المنظف الذكي</h3>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">يفحص الكاش ويمسح الروابط التالفة تلقائياً.</p>
                         </div>
                         <label class="toggle-switch"><input type="checkbox" id="cfg-validator" checked onchange="updateServerConfig()"></label>
                     </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem;">
                         <div>
                             <h3 style="font-weight: 800;">استقبال WebSockets</h3>
                             <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">السماح بفتح اتصالات دائمة جديدة.</p>
                         </div>
                         <label class="toggle-switch"><input type="checkbox" id="cfg-ws" checked onchange="updateServerConfig()"></label>
                     </div>
-
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <h3 style="font-weight: 800;">مسح الذاكرة المؤقتة</h3>
@@ -401,25 +390,44 @@
                         </div>
                         <button class="btn-action btn-danger" onclick="clearServerCache()">تنفيذ</button>
                     </div>
-
                 </div>
             </section>
-
         </main>
     </div>
 
     <script>
         /* ==========================================================================
-           الطبقة الأمنية الأولى (مفتاح الـ API ثابت كما في الباك إند)
+           1. إعدادات الثيم (شمس وقمر)
            ========================================================================== */
-        const API_KEY = "Titan_2026_Ultra_Fast"; // المفتاح الفعلي للسيرفر لا تقم بتغييره
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute('data-theme');
+            const newTheme = current === 'light' ? 'dark' : 'light';
+            html.setAttribute('data-theme', newTheme);
+            localStorage.setItem('eg_theme', newTheme);
+            updateThemeIcons(newTheme);
+        }
+
+        function updateThemeIcons(theme) {
+            const iconClass = theme === 'light' ? 'fa-moon' : 'fa-sun';
+            document.getElementById('theme-icon').className = `fa-solid ${iconClass}`;
+            document.getElementById('theme-icon-mobile').className = `fa-solid ${iconClass}`;
+        }
+
+        // استرجاع الثيم المحفوظ
+        const savedTheme = localStorage.getItem('eg_theme') || 'light';
+        document.documentElement.setAttribute('data-theme', savedTheme);
+        updateThemeIcons(savedTheme);
+
+        /* ==========================================================================
+           2. الاتصال بسيرفر C++ (UltraCore)
+           ========================================================================== */
+        const API_KEY = "Ultra_2026_Fast"; // المفتاح المتطابق مع C++
         const BASE_URL = window.location.origin;
         let wsConnection = null;
 
-        // فحص حالة تسجيل الدخول المسبقة
         if (sessionStorage.getItem("eg_unlocked") === "true") {
-            const lock = document.getElementById("lock-screen");
-            lock.style.display = "none";
+            document.getElementById("lock-screen").style.display = "none";
             initSystem();
         }
 
@@ -431,15 +439,12 @@
             if (u === "admin" && p === "asdfghjkl05896") {
                 err.style.display = "none";
                 const lock = document.getElementById("lock-screen");
-                
-                // أنيميشن الاختراق الناعم
                 lock.classList.add("unlocked");
-                
                 setTimeout(() => {
                     lock.style.display = "none";
                     sessionStorage.setItem("eg_unlocked", "true");
                     initSystem();
-                }, 700); // يتوافق مع مدة الانتقال في الـ CSS
+                }, 700); 
             } else {
                 err.style.display = "block";
             }
@@ -450,9 +455,6 @@
             location.reload();
         }
 
-        /* ==========================================================================
-           التنقل بين الصفحات (SPA)
-           ========================================================================== */
         function switchView(viewId, el) {
             document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
@@ -464,9 +466,6 @@
             if(viewId === 'history') loadHistory();
         }
 
-        /* ==========================================================================
-           تهيئة الماسورة للاتصال السريع الدائم
-           ========================================================================== */
         function initSystem() {
             connectWebSocket();
             fetchAdminStats();
@@ -478,7 +477,6 @@
             wsConnection = new WebSocket(`${wsProtocol}//${location.host}/api/v1/ws/stream`);
 
             wsConnection.onopen = () => {
-                console.log("EG Pipe Open");
                 wsConnection.send(JSON.stringify({ auth: API_KEY }));
             };
 
@@ -492,9 +490,6 @@
             };
         }
 
-        /* ==========================================================================
-           نظام الاستخراج والبحث وعرض النتائج
-           ========================================================================== */
         async function requestExtraction() {
             const url = document.getElementById("media-url").value.trim();
             if (!url) return;
@@ -511,12 +506,12 @@
             } else {
                 try {
                     const res = await fetch(`${BASE_URL}/api/v1/extract?url=${encodeURIComponent(url)}&audio_only=${isAudio}&force_refresh=${refresh}`, {
-                        headers: { 'X-Titan-Key': API_KEY, 'Accept': 'application/json' }
+                        headers: { 'X-Ultra-Key': API_KEY, 'Accept': 'application/json' }
                     });
                     const data = await res.json();
                     handleExtractionResult(data);
                 } catch (e) {
-                    alert("خطأ في الاتصال بسيرفر EG.");
+                    alert("خطأ في الاتصال بالسيرفر.");
                     resetExtractionUI();
                 }
             }
@@ -534,40 +529,40 @@
             }
 
             document.getElementById("result-display").style.display = "block";
-            document.getElementById("res-title").innerText = data.title;
-            document.getElementById("res-time").innerText = `${data.process_time_ms} ms`;
-            document.getElementById("res-method").innerText = data.cached ? "⚡ مسحوب من الرام" : "🌐 استخراج حي";
-            document.getElementById("res-live").innerText = data.is_live ? "بث مباشر" : "مسجل";
+            document.getElementById("res-title").innerText = data.title || "Unknown Title";
+            document.getElementById("res-time").innerText = `${data.process_time_ms.toFixed(2)} ms`;
+            document.getElementById("res-method").innerText = data.cached ? "⚡ كاش" : "🌐 C++ Engine";
+            document.getElementById("res-live").innerText = data.is_live ? "بث مباشر" : "فيديو مسجل";
 
-            // المشغل
             const pBox = document.getElementById("player-box");
             pBox.innerHTML = "";
-            let mediaType = data.smart_formats && data.smart_formats.audio_only && data.smart_formats.audio_only.length > 0 ? "audio" : "video";
-            if(data.is_live) mediaType = "video";
+            let mediaType = "video";
+            
+            if (data.smart_formats && data.smart_formats.audio_only && data.smart_formats.audio_only.length > 0 && !data.is_live && !data.direct_stream_url.includes('mp4')) {
+                mediaType = "audio";
+            }
             
             const player = document.createElement(mediaType);
             player.controls = true;
             player.src = data.direct_stream_url;
             pBox.appendChild(player);
 
-            // الجداول وتحديث أزرار التحميل
             const tbody = document.querySelector("#formats-table tbody");
             tbody.innerHTML = "";
             
             let allFormats = [];
             if(data.smart_formats) {
-                allFormats = [...data.smart_formats.best_muxed, ...data.smart_formats.audio_only, ...data.smart_formats.video_only];
+                allFormats = [...(data.smart_formats.best_muxed || []), ...(data.smart_formats.audio_only || []), ...(data.smart_formats.video_only || [])];
             }
 
             allFormats.slice(0, 15).forEach(f => {
                 const tr = document.createElement("tr");
                 tr.innerHTML = `
-                    <td><span class="badge-res">${f.ext}</span></td>
-                    <td dir="ltr" style="font-weight:800; color:var(--text-main);">${f.resolution}</td>
+                    <td><span class="badge-res">${f.ext || 'N/A'}</span></td>
+                    <td dir="ltr" style="font-weight:800; color:var(--text-main);">${f.resolution || 'N/A'}</td>
                     <td>${f.vcodec !== 'none' ? f.vcodec : f.acodec}</td>
                     <td>
                         <a href="${f.url}" target="_blank" class="btn-action"><i class="fa-solid fa-download"></i></a>
-                        <a href="${f.url}" target="_blank" class="btn-action" style="background:#000;"><i class="fa-solid fa-play"></i></a>
                     </td>
                 `;
                 tbody.appendChild(tr);
@@ -581,9 +576,6 @@
             document.getElementById("btn-submit").disabled = false;
         }
 
-        /* ==========================================================================
-           السجل المحلي (History)
-           ========================================================================== */
         function saveToHistory(title, type, url) {
             let hist = JSON.parse(localStorage.getItem("eg_history") || "[]");
             hist.unshift({ title, type, url, time: new Date().toLocaleString('ar-EG') });
@@ -612,26 +604,21 @@
             loadHistory();
         }
 
-        /* ==========================================================================
-           اتصالات لوحة التحكم (Admin API)
-           ========================================================================== */
         async function fetchAdminStats() {
             try {
-                const res = await fetch(`${BASE_URL}/api/v1/admin/stats`, { headers: { 'X-Titan-Key': API_KEY } });
+                const res = await fetch(`${BASE_URL}/api/v1/admin/stats`, { headers: { 'X-Ultra-Key': API_KEY } });
                 const stats = await res.json();
-                document.getElementById("stat-ws").innerText = stats.active_ws_connections;
-                document.getElementById("stat-ram").innerText = stats.memory_usage;
-                document.getElementById("stat-reqs").innerText = stats.total_requests;
-                document.getElementById("stat-cache").innerText = stats.cached_files_count;
-            } catch (e) {
-                console.error("Stats fetch failed");
-            }
+                document.getElementById("stat-ws").innerText = stats.active_ws_connections || 0;
+                document.getElementById("stat-ram").innerText = stats.memory_usage || "-- MB";
+                document.getElementById("stat-reqs").innerText = stats.total_requests || 0;
+                document.getElementById("stat-cache").innerText = stats.cached_files_count || 0;
+            } catch (e) {}
         }
 
         async function clearServerCache() {
             if(!confirm("مسح جميع البيانات من الرام؟")) return;
             try {
-                const res = await fetch(`${BASE_URL}/api/v1/admin/clear_cache`, { method: "POST", headers: { 'X-Titan-Key': API_KEY } });
+                const res = await fetch(`${BASE_URL}/api/v1/admin/clear_cache`, { method: "POST", headers: { 'X-Ultra-Key': API_KEY } });
                 const data = await res.json();
                 if(data.success) {
                     alert("تم تنظيف الرام.");
@@ -641,15 +628,7 @@
         }
 
         async function updateServerConfig() {
-            const validator = document.getElementById("cfg-validator").checked;
-            const ws = document.getElementById("cfg-ws").checked;
-            try {
-                await fetch(`${BASE_URL}/api/v1/admin/config`, { 
-                    method: "POST", 
-                    headers: { 'X-Titan-Key': API_KEY, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ smart_validation_enabled: validator, allow_new_ws_connections: ws })
-                });
-            } catch(e) {}
+            // (اختياري) لو عايز تفعل تغيير إعدادات C++ من الواجهة لاحقاً
         }
     </script>
 </body>
