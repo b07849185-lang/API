@@ -197,40 +197,9 @@ class TitanExtractor:
     def __init__(self):
         self.thread_pool = ThreadPoolExecutor(max_workers=max(8, min(MAX_CONCURRENT_EXTRACTS, 128)))
         self.sema = asyncio.Semaphore(MAX_CONCURRENT_EXTRACTS)
-        self.impersonate_supported = False
-        try:
-            out = self._run_cmd_sync([YT_DLP_BIN, "--list-impersonate-targets"])
-            if out and ("chrome" in out or IMPERSONATE_TARGET in out):
-                self.impersonate_supported = True
-        except Exception:
-            pass
+        self.impersonate_supported = True 
 
-    def _run_cmd_sync(self, cmd: List[str], timeout: int = 5) -> str:
-        try:
-            import subprocess
-            p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
-            return p.stdout.decode("utf-8", "ignore")
-        except Exception:
-            return ""
-
-    async def _exec_cmd(self, *args: str, timeout: int = 15) -> Tuple[bytes, bytes]:
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                *args, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
-            )
-            try:
-                out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-                return out or b"", err or b""
-            except asyncio.TimeoutError:
-                try:
-                    proc.kill()
-                except Exception:
-                    pass
-                return b"", b"timeout"
-        except Exception as e:
-            return b"", str(e).encode()
-
-    def _sync_api_extract(self, url: str, cookie: Optional[str]) -> dict:
+    def _sync_api_extract(self, url: str, cookie: Optional[str], attempt: int) -> dict:
         try:
             opts = {
                 "quiet": True, 
@@ -239,23 +208,27 @@ class TitanExtractor:
                 "extract_flat": False, 
                 "noplaylist": True,
                 "default_search": "ytsearch",
-                "extractor_args": {
-                    "youtube": {
-                        "player_client": ["android", "web"], 
-                        "player_skip": ["webpage", "configs"]
-                    }
-                },
-                "remote_components": "ejs:github",
+                "socket_timeout": 8,
                 "compat_opts": ["no-youtube-unavailable-videos"]
             }
             if cookie: 
                 opts["cookiefile"] = cookie
             if self.impersonate_supported: 
                 opts["impersonate"] = IMPERSONATE_TARGET
+
+            if attempt == 1:
+                opts["remote_components"] = "ejs:github"
+                opts["extractor_args"] = {"youtube": {"player_client": ["android", "web"], "player_skip": ["webpage", "configs"]}}
+            elif attempt == 2:
+                opts["extractor_args"] = {"youtube": {"player_client": ["android"], "player_skip": ["webpage", "configs"]}}
+            else:
+                opts["remote_components"] = "ejs:github"
+                opts["extractor_args"] = {"youtube": {"player_client": ["web"]}}
+
             with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=False)
-        except Exception:
-            return {}
+        except Exception as e:
+            raise e
 
     async def extract_smart(self, raw_query: str) -> Tuple[Dict[str, Any], str]:
         last_err = "unknown"
@@ -274,73 +247,26 @@ class TitanExtractor:
                 try:
                     if attempt == 1:
                         method_used = "In-Memory API (Android/Web + EJS)"
-                        if cookie: 
-                            cookie_used = True
-                        try:
-                            loop = asyncio.get_running_loop()
-                            info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, query, cookie)
-                            try:
-                                if info and "entries" in info and isinstance(info["entries"], list) and len(info["entries"]) > 0:
-                                    info = info["entries"][0]
-                            except Exception:
-                                pass
-                            if info and info.get("formats"): 
-                                return info, method_used
-                        except Exception as inner_e:
-                            last_err = str(inner_e)
-
                     elif attempt == 2:
-                        method_used = "CLI Ultra-Fast (Android)"
-                        cookie_used = False 
-                        cmd = [YT_DLP_BIN, "--dump-json", "--default-search", "ytsearch1", "--no-warnings", query]
-                        if self.impersonate_supported: 
-                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=android;player_skip=webpage,configs"])
-                        out, err = await self._exec_cmd(*cmd, timeout=12)
-                        if out:
-                            try:
-                                for line in out.decode("utf-8", "ignore").splitlines():
-                                    line = line.strip()
-                                    if line.startswith("{"):
-                                        try:
-                                            info = _loads_bytes(line.encode())
-                                            if info and "entries" in info and isinstance(info["entries"], list) and len(info["entries"]) > 0:
-                                                info = info["entries"][0]
-                                            if info and info.get("formats"): 
-                                                return info, method_used
-                                        except Exception:
-                                            continue
-                            except Exception:
-                                pass
-                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
-
+                        method_used = "In-Memory API (Android Fast)"
                     elif attempt == 3:
-                        method_used = "CLI Standard Web (Fallback)"
-                        if cookie:
-                            cookie_used = True
-                        cmd = [YT_DLP_BIN, "--dump-json", "--default-search", "ytsearch1", "--no-warnings", "--remote-components", "ejs:github", query]
-                        if cookie:
-                            cmd.extend(["--cookies", cookie])
-                        if self.impersonate_supported: 
-                            cmd.extend(["--impersonate", IMPERSONATE_TARGET])
-                        cmd.extend(["--extractor-args", "youtube:player_client=web"])
-                        out, err = await self._exec_cmd(*cmd, timeout=18)
-                        if out:
-                            try:
-                                for line in out.decode("utf-8", "ignore").splitlines():
-                                    line = line.strip()
-                                    if line.startswith("{"):
-                                        try:
-                                            info = _loads_bytes(line.encode())
-                                            if info and "entries" in info and isinstance(info["entries"], list) and len(info["entries"]) > 0:
-                                                info = info["entries"][0]
-                                            if info and info.get("formats"): 
-                                                return info, method_used
-                                        except Exception:
-                                            continue
-                            except Exception:
-                                pass
-                        last_err = err.decode("utf-8", "ignore") if err else "Empty response"
+                        method_used = "In-Memory API (Web Fallback + EJS)"
+
+                    if cookie: 
+                        cookie_used = True
+                        
+                    try:
+                        loop = asyncio.get_running_loop()
+                        info = await loop.run_in_executor(self.thread_pool, self._sync_api_extract, query, cookie, attempt)
+                        try:
+                            if info and "entries" in info and isinstance(info["entries"], list) and len(info["entries"]) > 0:
+                                info = info["entries"][0]
+                        except Exception:
+                            pass
+                        if info and info.get("formats"): 
+                            return info, method_used
+                    except Exception as inner_e:
+                        last_err = str(inner_e)
 
                 except Exception as e:
                     last_err = str(e)
