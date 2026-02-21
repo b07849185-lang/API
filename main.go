@@ -251,17 +251,19 @@ func (cm *EnterpriseCookieManager) Count() int {
 	return len(cm.Pool)
 }
 
-func execCmd(timeout time.Duration, name string, args ...string) ([]byte, error) {
+func execCmd(timeout time.Duration, name string, args ...string) ([]byte, string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, name, args...)
-	var out bytes.Buffer
-	cmd.Stdout = &out
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	cmd.Stdout = &stdout
+	cmd.Stderr = &stderr
 	err := cmd.Run()
 	if ctx.Err() == context.DeadlineExceeded {
-		return nil, fmt.Errorf("timeout")
+		return stdout.Bytes(), stderr.String(), fmt.Errorf("timeout")
 	}
-	return out.Bytes(), err
+	return stdout.Bytes(), stderr.String(), err
 }
 
 func extractSmart(rawQuery string) (map[string]interface{}, string, error) {
@@ -270,31 +272,32 @@ func extractSmart(rawQuery string) (map[string]interface{}, string, error) {
 		query = "ytsearch1:" + query
 	}
 
-	var lastErr error
+	var lastErrStr string
 	for attempt := 1; attempt <= 3; attempt++ {
 		cookie := cookieVault.GetCookie()
 		methodUsed := ""
-		args := []string{"--dump-json", "--no-warnings", "--skip-download", "--no-playlist"}
+		args := []string{"--dump-json", "--no-warnings", "--skip-download", "--no-playlist", "--force-ipv4"}
 
 		if cookie != "" {
 			args = append(args, "--cookies", cookie)
 		}
 
 		if attempt == 1 {
-			methodUsed = "CLI Fast (CFFI + EJS + Android/Web)"
-			args = append(args, "--impersonate", IMPERSONATE_TARGET, "--extractor-args", "youtube:player_client=android,web;player_skip=webpage,configs", "--remote-components", "ejs:github", "--socket-timeout", "5", "--retries", "0")
+			methodUsed = "CFFI Chrome + Android/Web"
+			args = append(args, "--impersonate", IMPERSONATE_TARGET, "--extractor-args", "youtube:player_client=android,web", "--socket-timeout", "10")
 		} else if attempt == 2 {
-			methodUsed = "CLI Fallback (CFFI + Android)"
-			args = append(args, "--impersonate", IMPERSONATE_TARGET, "--extractor-args", "youtube:player_client=android;player_skip=webpage,configs", "--socket-timeout", "8", "--retries", "1")
+			methodUsed = "EJS GitHub + Web"
+			args = append(args, "--remote-components", "ejs:github", "--extractor-args", "youtube:player_client=web", "--socket-timeout", "15")
 		} else {
-			methodUsed = "CLI Standard (Web + EJS)"
-			args = append(args, "--extractor-args", "youtube:player_client=web", "--remote-components", "ejs:github", "--socket-timeout", "10", "--retries", "2")
+			methodUsed = "Native Android Fallback"
+			args = append(args, "--extractor-args", "youtube:player_client=android", "--socket-timeout", "15")
 		}
 
 		args = append(args, query)
 
-		out, err := execCmd(15*time.Second, YT_DLP_BIN, args...)
-		if err == nil && len(out) > 0 {
+		out, stderr, err := execCmd(20*time.Second, YT_DLP_BIN, args...)
+		
+		if len(out) > 0 {
 			var info map[string]interface{}
 			lines := strings.Split(string(out), "\n")
 			for _, line := range lines {
@@ -308,19 +311,34 @@ func extractSmart(rawQuery string) (map[string]interface{}, string, error) {
 						}
 						if _, ok := info["formats"]; ok {
 							return info, methodUsed, nil
+						} else if _, ok := info["url"]; ok {
+							return info, methodUsed, nil
 						}
 					}
 				}
 			}
 		}
 
-		lastErr = fmt.Errorf("attempt %d failed", attempt)
-		if cookie != "" && err != nil && (strings.Contains(strings.ToLower(err.Error()), "sign in") || strings.Contains(strings.ToLower(err.Error()), "bot")) {
+		errDetail := ""
+		if err != nil {
+			errDetail = err.Error()
+		}
+		
+		cleanStderr := strings.TrimSpace(stderr)
+		if len(cleanStderr) > 200 {
+			cleanStderr = cleanStderr[len(cleanStderr)-200:]
+		}
+		
+		lastErrStr = fmt.Sprintf("Attempt %d failed: %s | Details: %s", attempt, errDetail, cleanStderr)
+		
+		if cookie != "" && (strings.Contains(strings.ToLower(stderr), "sign in") || strings.Contains(strings.ToLower(stderr), "bot")) {
 			cookieVault.ReportFailure(cookie)
 		}
-		time.Sleep(200 * time.Millisecond)
+		
+		time.Sleep(300 * time.Millisecond)
 	}
-	return nil, "", fmt.Errorf("Extraction failed: %v", lastErr)
+	
+	return nil, "", fmt.Errorf("Extraction failed after 3 attempts. Last log: %s", lastErrStr)
 }
 
 func buildSmartFormats(formatsList []interface{}) (SmartFormats, string, string) {
