@@ -454,6 +454,7 @@ ws "/api/v1/ws/stream" do |socket|
   authenticated = false
 
   socket.on_message do |msg|
+    start_time = Time.monotonic # <-- تم النقل هنا لتجنب أي أخطاء في الـ Nil
     begin
       req = JSON.parse(msg)
       
@@ -477,7 +478,6 @@ ws "/api/v1/ws/stream" do |socket|
       audio_only = true if audio_only.nil?
 
       STATS.inc_total
-      start_time = Time.monotonic
       cache_key = "#{url}_audio:#{audio_only}"
 
       if cached_json = CACHE.get(cache_key)
