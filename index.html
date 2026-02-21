@@ -3,24 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TitanOS - Ultimate Dashboard</title>
-    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <title>EG Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
     <style>
         /* ==========================================================================
-           1. المتغيرات والأساسيات (120FPS Optimized)
+           1. المتغيرات والأساسيات (120FPS GPU Optimized)
            ========================================================================== */
         :root {
-            --glass-bg: rgba(255, 255, 255, 0.6);
-            --glass-border: rgba(255, 255, 255, 0.8);
-            --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
-            --text-main: #0f172a;
-            --text-muted: #475569;
-            --accent: #2563eb;
-            --accent-hover: #1d4ed8;
-            --success: #10b981;
-            --danger: #ef4444;
+            --glass-bg: rgba(255, 255, 255, 0.65);
+            --glass-border: rgba(255, 255, 255, 0.9);
+            --glass-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
+            --text-main: #1d1d1f;
+            --text-muted: #86868b;
+            --accent: #000000;
+            --accent-light: #333333;
+            --success: #34c759;
+            --danger: #ff3b30;
             --dark-player: #000000;
             --sidebar-width: 280px;
         }
@@ -31,444 +31,234 @@
             padding: 0;
             font-family: 'Cairo', sans-serif;
             -webkit-tap-highlight-color: transparent;
+            will-change: transform, opacity;
         }
 
         body {
-            background-color: #f8fafc;
+            background-color: #f5f5f7;
             color: var(--text-main);
             overflow-x: hidden;
             min-height: 100vh;
-            display: flex;
         }
 
-        /* ==========================================================================
-           2. الخلفية الديناميكية (Liquid Background)
-           ========================================================================== */
+        /* الخلفية الديناميكية الهادئة */
         .liquid-bg {
             position: fixed;
             top: 0; left: 0; width: 100vw; height: 100vh;
-            z-index: -1;
-            background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%);
+            z-index: -2;
+            background: #ffffff;
             overflow: hidden;
         }
 
         .blob {
             position: absolute;
             border-radius: 50%;
-            filter: blur(60px);
-            opacity: 0.8;
-            will-change: transform;
-            animation: float 20s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+            filter: blur(90px);
+            opacity: 0.5;
+            animation: float 25s infinite alternate cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateZ(0); /* فرض تسريع كارت الشاشة */
         }
 
-        .blob-1 { width: 50vw; height: 50vw; background: rgba(255,255,255,0.8); top: -10%; right: -10%; }
-        .blob-2 { width: 40vw; height: 40vw; background: rgba(186, 216, 255, 0.6); bottom: -10%; left: -10%; animation-delay: -5s; }
-        .blob-3 { width: 30vw; height: 30vw; background: rgba(255, 255, 255, 0.9); top: 40%; left: 30%; animation-delay: -10s; }
+        .blob-1 { width: 50vw; height: 50vw; background: #e2e2e8; top: -10%; right: -10%; }
+        .blob-2 { width: 60vw; height: 60vw; background: #f5f5f7; bottom: -20%; left: -10%; animation-delay: -5s; }
 
-        @keyframes float {
-            0% { transform: translate(0, 0) scale(1); }
-            100% { transform: translate(50px, 50px) scale(1.1); }
-        }
-
-        /* ==========================================================================
-           3. فئات الزجاج الموحدة (Glassmorphism)
-           ========================================================================== */
         .glass-panel {
             background: var(--glass-bg);
-            backdrop-filter: blur(24px) saturate(180%);
-            -webkit-backdrop-filter: blur(24px) saturate(180%);
+            backdrop-filter: blur(30px) saturate(150%);
+            -webkit-backdrop-filter: blur(30px) saturate(150%);
             border: 1px solid var(--glass-border);
             border-radius: 20px;
             box-shadow: var(--glass-shadow);
         }
 
         /* ==========================================================================
-           4. القائمة الجانبية (Sidebar)
+           2. شاشة القفل (Apple Login Style)
            ========================================================================== */
-        .sidebar {
-            width: var(--sidebar-width);
-            height: 100vh;
+        #lock-screen {
             position: fixed;
-            right: 0;
-            top: 0;
-            padding: 2rem 1.5rem;
+            top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(50px) saturate(200%);
+            -webkit-backdrop-filter: blur(50px) saturate(200%);
+            z-index: 9999;
             display: flex;
             flex-direction: column;
-            gap: 2rem;
-            z-index: 100;
-            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            border-radius: 0;
-            border-left: 1px solid var(--glass-border);
-            border-right: none;
-        }
-
-        .sidebar-header {
-            display: flex;
             align-items: center;
-            gap: 1rem;
-            font-size: 1.8rem;
-            font-weight: 800;
-            background: linear-gradient(45deg, var(--accent), #60a5fa);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
+            justify-content: center;
+            /* التأثير المطلوب: تكبير وتلاشي ليدخلك على الموقع */
+            transition: transform 0.7s cubic-bezier(0.7, 0, 0.3, 1), opacity 0.6s ease;
+            transform-origin: center center;
         }
 
-        .stats-box {
-            background: rgba(255, 255, 255, 0.5);
-            border-radius: 16px;
-            padding: 1.2rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            border: 1px solid rgba(255,255,255,0.7);
+        #lock-screen.unlocked {
+            transform: scale(1.3);
+            opacity: 0;
+            pointer-events: none;
         }
 
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-size: 0.95rem;
-            font-weight: 600;
-        }
-
-        .stat-value {
-            font-family: 'Inter', sans-serif;
-            color: var(--accent);
-            font-weight: 800;
-        }
-
-        .nav-menu {
-            list-style: none;
-            display: flex;
-            flex-direction: column;
-            gap: 0.5rem;
-        }
-
-        .nav-item {
-            padding: 1rem 1.2rem;
-            border-radius: 12px;
-            cursor: pointer;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            transition: all 0.3s ease;
-            color: var(--text-muted);
-        }
-
-        .nav-item.active, .nav-item:hover {
-            background: rgba(255, 255, 255, 0.8);
-            color: var(--accent);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
-            transform: translateX(-5px);
-        }
-
-        /* ==========================================================================
-           5. المحتوى الرئيسي (Main Content)
-           ========================================================================== */
-        .main-content {
-            margin-right: var(--sidebar-width);
-            width: calc(100% - var(--sidebar-width));
-            padding: 2rem;
-            min-height: 100vh;
-            transition: margin 0.4s ease, width 0.4s ease;
-        }
-
-        .top-nav {
-            display: none; /* يظهر في الموبايل فقط */
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-        }
-
-        .menu-btn {
-            font-size: 1.5rem;
-            color: var(--text-main);
-            background: none;
-            border: none;
-            cursor: pointer;
-            padding: 0.5rem;
-        }
-
-        /* مربع الإدخال والبحث */
-        .search-container {
-            padding: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .search-title {
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-            font-weight: 800;
-        }
-
-        .input-group {
-            display: flex;
-            gap: 1rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .main-input {
-            flex: 1;
-            padding: 1.2rem 1.5rem;
-            font-size: 1.1rem;
-            border-radius: 16px;
-            border: 2px solid rgba(255,255,255,0.8);
-            background: rgba(255,255,255,0.7);
-            color: var(--text-main);
-            outline: none;
-            transition: all 0.3s ease;
-        }
-        
-        .main-input:focus {
-            border-color: var(--accent);
-            background: #ffffff;
-            box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-        }
-
-        .btn-primary {
-            background: linear-gradient(135deg, var(--accent) 0%, #1e40af 100%);
-            color: white;
-            border: none;
-            padding: 0 2rem;
-            border-radius: 16px;
-            font-size: 1.1rem;
-            font-weight: 800;
-            cursor: pointer;
-            transition: all 0.3s;
-            display: flex;
-            align-items: center;
-            gap: 0.8rem;
-            white-space: nowrap;
-        }
-
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(37, 99, 235, 0.3);
-        }
-
-        .btn-primary:disabled {
-            background: #94a3b8;
-            transform: none;
-            box-shadow: none;
-            cursor: not-allowed;
-        }
-
-        .options-row {
-            display: flex;
-            gap: 2rem;
-            flex-wrap: wrap;
-        }
-
-        .checkbox-label {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            font-weight: 600;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .checkbox-label input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            accent-color: var(--accent);
-        }
-
-        /* ==========================================================================
-           6. مشغل الفيديو والإحصائيات (Player & Results)
-           ========================================================================== */
-        #results-area {
-            display: none;
-            animation: fadeIn 0.5s ease forwards;
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        .grid-layout {
-            display: grid;
-            grid-template-columns: 2fr 1fr;
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .player-box {
-            padding: 1rem;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        /* تصميم المشغل الأسود */
-        .video-container {
-            width: 100%;
-            aspect-ratio: 16/9;
-            background-color: var(--dark-player);
-            border-radius: 12px;
-            overflow: hidden;
-            position: relative;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-        }
-
-        video, audio {
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
-            outline: none;
-        }
-
-        .media-title {
-            font-size: 1.3rem;
-            font-weight: 800;
-            line-height: 1.4;
-        }
-
-        .badges-container {
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
-
-        .badge {
-            padding: 0.4rem 1rem;
-            border-radius: 8px;
-            font-size: 0.85rem;
-            font-weight: 800;
-            background: rgba(37, 99, 235, 0.1);
-            color: var(--accent);
-            font-family: 'Inter', sans-serif;
-        }
-
-        /* كروت الإحصائيات المصغرة */
-        .mini-stats {
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-        }
-
-        .info-card {
-            background: rgba(255,255,255,0.6);
-            padding: 1.5rem;
-            border-radius: 16px;
-            border: 1px solid rgba(255,255,255,0.8);
-            text-align: center;
-        }
-        
-        .info-card h4 { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem; }
-        .info-card p { font-family: 'Inter', sans-serif; font-size: 1.2rem; font-weight: 800; color: var(--text-main); }
-
-        /* ==========================================================================
-           7. الجداول الذكية (Smart Tables)
-           ========================================================================== */
-        .formats-container {
-            display: flex;
-            flex-direction: column;
-            gap: 2rem;
-        }
-
-        .format-section {
-            padding: 1.5rem;
-        }
-
-        .format-section h3 {
-            margin-bottom: 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--accent);
-        }
-
-        .table-responsive {
-            overflow-x: auto;
-            border-radius: 12px;
-            border: 1px solid var(--glass-border);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            background: rgba(255,255,255,0.5);
-            text-align: right;
-        }
-
-        th, td {
-            padding: 1rem;
-            border-bottom: 1px solid rgba(0,0,0,0.05);
-            font-family: 'Inter', sans-serif;
-            font-size: 0.9rem;
-        }
-
-        th { background: rgba(255,255,255,0.7); color: var(--text-muted); font-family: 'Cairo', sans-serif; font-weight: 800; }
-        tr:last-child td { border-bottom: none; }
-        tr:hover td { background: rgba(255,255,255,0.9); }
-
-        .btn-download {
+        .user-avatar {
+            width: 100px; height: 100px;
+            border-radius: 50%;
             background: var(--text-main);
-            color: white;
-            padding: 0.4rem 1rem;
-            border-radius: 6px;
-            text-decoration: none;
-            font-size: 0.8rem;
-            font-family: 'Cairo', sans-serif;
-            transition: opacity 0.2s;
-            display: inline-block;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 2.5rem; color: white;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
         }
-        .btn-download:hover { opacity: 0.8; }
+
+        .welcome-text {
+            font-size: 1.8rem; font-weight: 800; margin-bottom: 2rem;
+            letter-spacing: -0.5px;
+        }
+
+        .login-box {
+            display: flex; flex-direction: column; gap: 1rem;
+            width: 100%; max-width: 300px;
+        }
+
+        .apple-input {
+            width: 100%; padding: 1rem 1.5rem;
+            border-radius: 14px;
+            border: 1px solid rgba(0,0,0,0.1);
+            background: rgba(255,255,255,0.8);
+            font-size: 1.1rem; text-align: center;
+            outline: none; transition: all 0.3s;
+        }
+        
+        .apple-input:focus { 
+            border-color: var(--accent); 
+            background: #fff; 
+            box-shadow: 0 0 0 3px rgba(0,0,0,0.05);
+        }
+
+        .apple-btn {
+            width: 100%; padding: 1rem; border-radius: 14px;
+            background: var(--text-main); color: white;
+            border: none; font-size: 1.1rem; font-weight: 800;
+            cursor: pointer; transition: transform 0.2s;
+        }
+        .apple-btn:active { transform: scale(0.97); }
+
+        #auth-error { 
+            color: var(--danger); font-size: 0.95rem; font-weight: 800; 
+            margin-top: 0.5rem; text-align: center; display: none; 
+        }
+
+        /* ==========================================================================
+           3. التطبيق الرئيسي (Dashboard)
+           ========================================================================== */
+        #app-core {
+            display: flex;
+            width: 100%;
+            min-height: 100vh;
+            position: relative;
+            z-index: 1; /* يقبع تحت شاشة القفل */
+        }
+
+        .sidebar {
+            width: var(--sidebar-width); height: 100vh;
+            position: fixed; right: 0; top: 0;
+            padding: 2rem 1.5rem; display: flex; flex-direction: column; gap: 1.5rem;
+            z-index: 100; transition: transform 0.4s ease;
+            border-radius: 0; border-left: 1px solid var(--glass-border); border-right: none;
+        }
+
+        .sidebar-brand {
+            font-size: 2rem; font-weight: 900; color: var(--text-main);
+            display: flex; align-items: center; justify-content: center; gap: 0.5rem;
+            letter-spacing: -1px;
+            margin-bottom: 1rem;
+        }
+
+        .nav-menu { list-style: none; display: flex; flex-direction: column; gap: 0.5rem; }
+        .nav-item {
+            padding: 1rem 1.2rem; border-radius: 14px; cursor: pointer;
+            font-weight: 800; display: flex; align-items: center; gap: 1rem;
+            transition: all 0.2s ease; color: var(--text-muted);
+        }
+        .nav-item.active, .nav-item:hover {
+            background: var(--text-main); color: white;
+        }
+
+        .main-content {
+            margin-right: var(--sidebar-width); width: calc(100% - var(--sidebar-width));
+            padding: 2.5rem; min-height: 100vh;
+        }
+
+        .top-nav { display: none; justify-content: space-between; align-items: center; margin-bottom: 2rem; }
+        .menu-btn { font-size: 1.5rem; background: none; border: none; cursor: pointer; color: var(--text-main); }
+
+        /* التحكم في عرض الصفحات */
+        .view-section { display: none; animation: fadeUp 0.4s ease forwards; }
+        .view-section.active { display: block; }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+
+        /* ==========================================================================
+           4. محرك البحث والاستخراج
+           ========================================================================== */
+        .search-area { padding: 2rem; margin-bottom: 2rem; }
+        .input-group { display: flex; gap: 1rem; margin-bottom: 1.5rem; }
+        .search-input {
+            flex: 1; padding: 1.2rem 1.5rem; font-size: 1.1rem; font-weight: 600;
+            border-radius: 14px; border: 1px solid var(--glass-border);
+            background: rgba(255,255,255,0.7); color: var(--text-main); outline: none;
+            transition: all 0.3s;
+        }
+        .search-input:focus { background: #fff; box-shadow: 0 0 0 3px rgba(0,0,0,0.05); border-color: var(--text-muted); }
+        
+        .btn-extract {
+            background: var(--text-main); color: white; border: none; padding: 0 2.5rem;
+            border-radius: 14px; font-size: 1.1rem; font-weight: 800; cursor: pointer;
+            transition: all 0.2s; display: flex; align-items: center; gap: 0.8rem;
+        }
+        .btn-extract:hover { background: var(--accent-light); }
+        .btn-extract:disabled { background: #d1d1d6; cursor: not-allowed; color: #86868b; }
+
+        .options-row { display: flex; gap: 1.5rem; flex-wrap: wrap; }
+        .toggle-switch { display: flex; align-items: center; gap: 0.5rem; font-weight: 800; cursor: pointer; user-select: none; }
+        .toggle-switch input { width: 20px; height: 20px; accent-color: var(--text-main); cursor: pointer; }
+
+        /* ==========================================================================
+           5. الإحصائيات والمراقبة الحية
+           ========================================================================== */
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; margin-bottom: 2rem; }
+        .stat-card { padding: 1.8rem; text-align: center; }
+        .stat-card i { font-size: 2rem; color: var(--text-main); margin-bottom: 1rem; }
+        .stat-card h4 { font-size: 1rem; color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 800;}
+        .stat-card p { font-size: 2rem; font-weight: 900; font-family: 'Inter', sans-serif; color: var(--text-main); }
+
+        /* ==========================================================================
+           6. الجداول الموحدة
+           ========================================================================== */
+        .table-wrap { overflow-x: auto; border-radius: 14px; border: 1px solid var(--glass-border); margin-top: 1rem; }
+        table { width: 100%; border-collapse: collapse; background: rgba(255,255,255,0.6); text-align: right; }
+        th, td { padding: 1.2rem; border-bottom: 1px solid rgba(0,0,0,0.05); font-size: 0.95rem; font-weight: 600; }
+        th { background: rgba(255,255,255,0.8); color: var(--text-muted); font-weight: 800; }
+        tr:hover td { background: #ffffff; }
+
+        .badge-res { background: #f2f2f7; color: var(--text-main); padding: 4px 10px; border-radius: 6px; font-family: 'Inter'; font-size: 0.85rem; font-weight: 800; border: 1px solid #e5e5ea; }
+        .btn-action { background: var(--text-main); color: white; padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; transition: transform 0.2s; border:none; cursor:pointer;}
+        .btn-action:active { transform: scale(0.95); }
+        .btn-danger { background: var(--danger); color: white; }
+
+        /* ==========================================================================
+           7. المشغل
+           ========================================================================== */
+        .player-container { background: var(--dark-player); border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; width: 100%; margin-bottom: 1.5rem; }
+        video, audio { width: 100%; height: 100%; outline: none; }
 
         /* Loader */
-        .spinner {
-            display: none;
-            width: 50px;
-            height: 50px;
-            border: 5px solid rgba(37, 99, 235, 0.2);
-            border-top-color: var(--accent);
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin: 2rem auto;
-        }
+        .loader-ring { display: none; width: 35px; height: 35px; border: 4px solid rgba(0,0,0,0.1); border-top-color: var(--text-main); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 2rem auto; }
         @keyframes spin { to { transform: rotate(360deg); } }
 
-        /* ==========================================================================
-           8. توافق الموبايل (Responsive Design)
-           ========================================================================== */
-        @media (max-width: 992px) {
-            .grid-layout { grid-template-columns: 1fr; }
-            .mini-stats { flex-direction: row; flex-wrap: wrap; }
-            .info-card { flex: 1; min-width: 120px; }
-        }
-
+        /* Responsive */
         @media (max-width: 768px) {
-            .sidebar {
-                transform: translateX(100%); /* إخفاء لليمين لأن الاتجاه RTL */
-            }
-            .sidebar.active {
-                transform: translateX(0);
-                box-shadow: -10px 0 30px rgba(0,0,0,0.1);
-            }
-            .main-content {
-                margin-right: 0;
-                width: 100%;
-                padding: 1rem;
-            }
+            .sidebar { transform: translateX(100%); }
+            .sidebar.open { transform: translateX(0); box-shadow: -20px 0 40px rgba(0,0,0,0.1); }
+            .main-content { margin-right: 0; width: 100%; padding: 1.5rem; }
             .top-nav { display: flex; }
             .input-group { flex-direction: column; }
-            .btn-primary { padding: 1rem; justify-content: center; }
-            .blob-1 { width: 80vw; height: 80vw; }
-            .blob-2 { width: 70vw; height: 70vw; }
-            
-            /* Overlay للموبايل */
-            .overlay {
-                display: none;
-                position: fixed;
-                top: 0; left: 0; width: 100vw; height: 100vh;
-                background: rgba(0,0,0,0.5);
-                z-index: 90;
-                backdrop-filter: blur(5px);
-            }
-            .overlay.active { display: block; }
+            .btn-extract { padding: 1.2rem; justify-content: center; }
         }
     </style>
 </head>
@@ -477,307 +267,389 @@
     <div class="liquid-bg">
         <div class="blob blob-1"></div>
         <div class="blob blob-2"></div>
-        <div class="blob blob-3"></div>
     </div>
 
-    <div class="overlay" id="overlay" onclick="toggleSidebar()"></div>
-
-    <aside class="sidebar glass-panel" id="sidebar">
-        <div class="sidebar-header">
-            <i class="fa-solid fa-bolt"></i>
-            TitanOS
+    <div id="lock-screen">
+        <div class="user-avatar"><i class="fa-solid fa-apple-whole"></i></div>
+        <div class="welcome-text">Welcome Abdallah</div>
+        <div class="login-box">
+            <input type="text" id="auth-user" class="apple-input" placeholder="Username" autocomplete="off">
+            <input type="password" id="auth-pass" class="apple-input" placeholder="Password">
+            <button class="apple-btn" onclick="unlockSystem()">Login</button>
+            <div id="auth-error">Incorrect Credentials</div>
         </div>
+    </div>
 
-        <div class="stats-box">
-            <div class="stat-row">
-                <span>حالة السيرفر</span>
-                <span id="ping-status" style="color: var(--text-muted);"><i class="fa-solid fa-spinner fa-spin"></i></span>
-            </div>
-            <div class="stat-row">
-                <span>سرعة الاستجابة</span>
-                <span id="ping-time" class="stat-value">-- ms</span>
-            </div>
-            <div class="stat-row">
-                <span>إجمالي العمليات</span>
-                <span id="total-ops" class="stat-value">0</span>
-            </div>
-        </div>
+    <div id="app-core">
+        <aside class="sidebar glass-panel" id="sidebar">
+            <div class="sidebar-brand">EG</div>
+            <ul class="nav-menu">
+                <li class="nav-item active" onclick="switchView('home', this)"><i class="fa-solid fa-bolt"></i> المحرك</li>
+                <li class="nav-item" onclick="switchView('stats', this)"><i class="fa-solid fa-chart-simple"></i> المراقبة</li>
+                <li class="nav-item" onclick="switchView('history', this)"><i class="fa-solid fa-clock-rotate-left"></i> السجل</li>
+                <li class="nav-item" onclick="switchView('settings', this)"><i class="fa-solid fa-sliders"></i> الإعدادات</li>
+                <li class="nav-item" style="color: var(--danger); margin-top: auto;" onclick="lockSystem()"><i class="fa-solid fa-lock"></i> قفل</li>
+            </ul>
+        </aside>
 
-        <ul class="nav-menu">
-            <li class="nav-item active"><i class="fa-solid fa-house"></i> الرئيسية</li>
-            <li class="nav-item" onclick="alert('سيتم إضافتها قريباً')"><i class="fa-solid fa-clock-rotate-left"></i> السجل</li>
-            <li class="nav-item" onclick="alert('سيتم إضافتها قريباً')"><i class="fa-solid fa-gear"></i> الإعدادات</li>
-        </ul>
-    </aside>
+        <main class="main-content">
+            <nav class="top-nav">
+                <h2 style="font-weight: 900;">EG</h2>
+                <button class="menu-btn" onclick="document.getElementById('sidebar').classList.toggle('open')"><i class="fa-solid fa-bars"></i></button>
+            </nav>
 
-    <main class="main-content">
-        <nav class="top-nav">
-            <h2 style="font-weight: 800; color: var(--accent);">TitanOS</h2>
-            <button class="menu-btn" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
-        </nav>
+            <section id="view-home" class="view-section active">
+                <div class="search-area glass-panel">
+                    <h2 style="margin-bottom: 1.5rem; font-weight: 900;">EG Engine</h2>
+                    <div class="input-group">
+                        <input type="text" id="media-url" class="search-input" placeholder="أدخل الرابط أو كلمة البحث هنا...">
+                        <button id="btn-submit" class="btn-extract" onclick="requestExtraction()">استخراج</button>
+                    </div>
+                    <div class="options-row">
+                        <label class="toggle-switch"><input type="checkbox" id="opt-audio" checked> وضع الصوت (أسرع)</label>
+                        <label class="toggle-switch"><input type="checkbox" id="opt-refresh"> تحديث إجباري (بدون كاش)</label>
+                    </div>
+                    <div id="main-loader" class="loader-ring"></div>
+                </div>
 
-        <div class="search-container glass-panel">
-            <h1 class="search-title">المحرك الذكي <i class="fa-solid fa-rocket" style="color: var(--accent);"></i></h1>
-            
-            <div class="input-group">
-                <input type="text" id="media-input" class="main-input" placeholder="أدخل رابط يوتيوب أو كلمة بحث (مثال: سورة الكهف)">
-                <button id="extract-btn" class="btn-primary" onclick="startExtraction()">
-                    <i class="fa-solid fa-magnifying-glass"></i> استخراج
-                </button>
-            </div>
-
-            <div class="options-row">
-                <label class="checkbox-label">
-                    <input type="checkbox" id="audio-only" checked>
-                    الصوت فقط (أسرع)
-                </label>
-                <label class="checkbox-label">
-                    <input type="checkbox" id="force-refresh">
-                    تجاهل الكاش
-                </label>
-            </div>
-            
-            <div id="loader" class="spinner"></div>
-            <div id="error-msg" style="color: var(--danger); margin-top: 1rem; font-weight: 800; text-align: center; display: none;"></div>
-        </div>
-
-        <div id="results-area">
-            <div class="grid-layout">
-                <div class="player-box glass-panel">
-                    <div class="video-container" id="player-wrapper">
+                <div id="result-display" style="display: none;">
+                    <div class="player-container" id="player-box"></div>
+                    
+                    <div class="glass-panel" style="padding: 1.5rem; margin-bottom: 2rem;">
+                        <h3 id="res-title" style="margin-bottom: 1rem; font-weight: 900;">...</h3>
+                        <div style="display: flex; gap: 1rem; font-family: Inter; font-weight: 800; color: var(--text-muted); font-size: 0.9rem;">
+                            <span id="res-time"></span> | <span id="res-method"></span> | <span id="res-live"></span>
                         </div>
-                    <h2 class="media-title" id="res-title">جاري التحميل...</h2>
-                    <div class="badges-container" id="res-badges"></div>
-                </div>
+                    </div>
 
-                <div class="mini-stats">
-                    <div class="info-card">
-                        <h4>زمن المعالجة</h4>
-                        <p id="res-time">0 ms</p>
-                    </div>
-                    <div class="info-card">
-                        <h4>محرك التخطي</h4>
-                        <p id="res-method" style="font-size: 1rem; color: var(--accent);">-</p>
-                    </div>
-                    <div class="info-card">
-                        <h4>مصدر البيانات</h4>
-                        <p id="res-cache">-</p>
+                    <div class="glass-panel" style="padding: 1.5rem;">
+                        <h3 style="font-weight: 900; margin-bottom: 1rem;">الجودات المتاحة</h3>
+                        <div class="table-wrap">
+                            <table id="formats-table">
+                                <thead><tr><th>الصيغة</th><th>الجودة</th><th>كودك</th><th>إجراء</th></tr></thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
-            </div>
+            </section>
 
-            <div class="formats-container">
-                <div class="format-section glass-panel" id="sec-muxed" style="display: none;">
-                    <h3><i class="fa-solid fa-film"></i> أفضل جودة (فيديو + صوت)</h3>
-                    <div class="table-responsive">
-                        <table id="table-muxed">
-                            <thead><tr><th>ID</th><th>صيغة</th><th>جودة</th><th>كودك الفيديو</th><th>كودك الصوت</th><th>إجراء</th></tr></thead>
+            <section id="view-stats" class="view-section">
+                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">مراقبة النظام</h2>
+                <div class="stats-grid">
+                    <div class="stat-card glass-panel">
+                        <i class="fa-solid fa-network-wired"></i>
+                        <h4>WebSockets</h4>
+                        <p id="stat-ws">0</p>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <i class="fa-solid fa-microchip"></i>
+                        <h4>RAM Usage</h4>
+                        <p id="stat-ram">-- MB</p>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <i class="fa-solid fa-server"></i>
+                        <h4>Total Requests</h4>
+                        <p id="stat-reqs">0</p>
+                    </div>
+                    <div class="stat-card glass-panel">
+                        <i class="fa-solid fa-database"></i>
+                        <h4>Cache Items</h4>
+                        <p id="stat-cache">0</p>
+                    </div>
+                </div>
+                <button class="btn-action" onclick="fetchAdminStats()"><i class="fa-solid fa-rotate"></i> تحديث</button>
+            </section>
+
+            <section id="view-history" class="view-section">
+                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">سجل العمليات</h2>
+                <div class="glass-panel" style="padding: 1.5rem;">
+                    <div class="table-wrap">
+                        <table id="history-table">
+                            <thead><tr><th>العنوان</th><th>النوع</th><th>الوقت</th><th>إجراء</th></tr></thead>
                             <tbody></tbody>
                         </table>
                     </div>
+                    <button class="btn-action btn-danger" style="margin-top: 1.5rem;" onclick="clearHistory()"><i class="fa-solid fa-trash"></i> مسح السجل</button>
                 </div>
+            </section>
 
-                <div class="format-section glass-panel" id="sec-audio" style="display: none;">
-                    <h3><i class="fa-solid fa-music"></i> صوت فقط (مثالي للبوتات)</h3>
-                    <div class="table-responsive">
-                        <table id="table-audio">
-                            <thead><tr><th>ID</th><th>صيغة</th><th>جودة (Bitrate)</th><th>كودك الصوت</th><th>إجراء</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
+            <section id="view-settings" class="view-section">
+                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">إعدادات EG</h2>
+                <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; gap: 2rem;">
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 1.5rem;">
+                        <div>
+                            <h3 style="font-weight: 800;">المنظف الذكي</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">يفحص الكاش ويمسح الروابط التالفة تلقائياً.</p>
+                        </div>
+                        <label class="toggle-switch"><input type="checkbox" id="cfg-validator" checked onchange="updateServerConfig()"></label>
                     </div>
-                </div>
 
-                <div class="format-section glass-panel" id="sec-video" style="display: none;">
-                    <h3><i class="fa-solid fa-video-slash"></i> فيديو بدون صوت (للمونتاج)</h3>
-                    <div class="table-responsive">
-                        <table id="table-video">
-                            <thead><tr><th>ID</th><th>صيغة</th><th>جودة</th><th>كودك الفيديو</th><th>إجراء</th></tr></thead>
-                            <tbody></tbody>
-                        </table>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom: 1.5rem;">
+                        <div>
+                            <h3 style="font-weight: 800;">استقبال WebSockets</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">السماح بفتح اتصالات دائمة جديدة.</p>
+                        </div>
+                        <label class="toggle-switch"><input type="checkbox" id="cfg-ws" checked onchange="updateServerConfig()"></label>
                     </div>
+
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="font-weight: 800;">مسح الذاكرة المؤقتة</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">حذف جميع البيانات من رام السيرفر.</p>
+                        </div>
+                        <button class="btn-action btn-danger" onclick="clearServerCache()">تنفيذ</button>
+                    </div>
+
                 </div>
-            </div>
-        </div>
-    </main>
+            </section>
+
+        </main>
+    </div>
 
     <script>
-        // إعدادات الـ API
-        const API_BASE_URL = window.location.origin; // بيقرأ الرابط اللي هو عليه تلقائياً
-        const API_KEY = 'Titan_2026_Ultra_Fast';
+        /* ==========================================================================
+           الطبقة الأمنية الأولى (مفتاح الـ API ثابت كما في الباك إند)
+           ========================================================================== */
+        const API_KEY = "Titan_2026_Ultra_Fast"; // المفتاح الفعلي للسيرفر لا تقم بتغييره
+        const BASE_URL = window.location.origin;
+        let wsConnection = null;
 
-        // إدارة حالة العمليات في المتصفح
-        let totalOps = localStorage.getItem('titan_ops') ? parseInt(localStorage.getItem('titan_ops')) : 0;
-        document.getElementById('total-ops').textContent = totalOps;
-
-        // فتح وقفل القائمة الجانبية للموبايل
-        function toggleSidebar() {
-            document.getElementById('sidebar').classList.toggle('active');
-            document.getElementById('overlay').classList.toggle('active');
+        // فحص حالة تسجيل الدخول المسبقة
+        if (sessionStorage.getItem("eg_unlocked") === "true") {
+            const lock = document.getElementById("lock-screen");
+            lock.style.display = "none";
+            initSystem();
         }
 
-        // فحص البنج (Ping) للسيرفر
-        async function checkPing() {
-            const start = performance.now();
-            try {
-                const res = await fetch(`${API_BASE_URL}/`);
-                if(res.ok) {
-                    const ping = Math.round(performance.now() - start);
-                    document.getElementById('ping-time').textContent = `${ping} ms`;
-                    document.getElementById('ping-status').innerHTML = `<i class="fa-solid fa-circle-check" style="color: var(--success);"></i> متصل`;
-                }
-            } catch (e) {
-                document.getElementById('ping-status').innerHTML = `<i class="fa-solid fa-circle-xmark" style="color: var(--danger);"></i> غير متصل`;
-                document.getElementById('ping-time').textContent = `Err`;
-            }
-            setTimeout(checkPing, 30000); // تحديث كل 30 ثانية
-        }
-        checkPing();
+        function unlockSystem() {
+            const u = document.getElementById("auth-user").value;
+            const p = document.getElementById("auth-pass").value;
+            const err = document.getElementById("auth-error");
 
-        // دالة الاستخراج
-        async function startExtraction() {
-            const inputVal = document.getElementById('media-input').value.trim();
-            if (!inputVal) return;
-
-            // تحديث الواجهة
-            document.getElementById('error-msg').style.display = 'none';
-            document.getElementById('results-area').style.display = 'none';
-            document.getElementById('loader').style.display = 'block';
-            const btn = document.getElementById('extract-btn');
-            btn.disabled = true;
-            btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> جاري...`;
-
-            const audioOnly = document.getElementById('audio-only').checked;
-            const forceRefresh = document.getElementById('force-refresh').checked;
-
-            try {
-                const apiUrl = `${API_BASE_URL}/api/v1/extract?url=${encodeURIComponent(inputVal)}&audio_only=${audioOnly}&force_refresh=${forceRefresh}`;
+            if (u === "admin" && p === "asdfghjkl05896") {
+                err.style.display = "none";
+                const lock = document.getElementById("lock-screen");
                 
-                const response = await fetch(apiUrl, {
-                    headers: { 'X-Titan-Key': API_KEY, 'Accept': 'application/json' }
-                });
-
-                const data = await response.json();
-
-                if (!response.ok || !data.success) {
-                    throw new Error(data.message || 'حدث خطأ غير معروف في السيرفر');
-                }
-
-                // زيادة العداد
-                totalOps++;
-                localStorage.setItem('titan_ops', totalOps);
-                document.getElementById('total-ops').textContent = totalOps;
-
-                renderResults(data, audioOnly);
-
-            } catch (err) {
-                const errMsg = document.getElementById('error-msg');
-                errMsg.textContent = err.message;
-                errMsg.style.display = 'block';
-            } finally {
-                document.getElementById('loader').style.display = 'none';
-                btn.disabled = false;
-                btn.innerHTML = `<i class="fa-solid fa-magnifying-glass"></i> استخراج`;
+                // أنيميشن الاختراق الناعم
+                lock.classList.add("unlocked");
+                
+                setTimeout(() => {
+                    lock.style.display = "none";
+                    sessionStorage.setItem("eg_unlocked", "true");
+                    initSystem();
+                }, 700); // يتوافق مع مدة الانتقال في الـ CSS
+            } else {
+                err.style.display = "block";
             }
         }
 
-        // دعم الضغط على Enter
-        document.getElementById('media-input').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') startExtraction();
+        function lockSystem() {
+            sessionStorage.removeItem("eg_unlocked");
+            location.reload();
+        }
+
+        /* ==========================================================================
+           التنقل بين الصفحات (SPA)
+           ========================================================================== */
+        function switchView(viewId, el) {
+            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+            el.classList.add('active');
+            if(window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
+            
+            if(viewId === 'stats') fetchAdminStats();
+            if(viewId === 'history') loadHistory();
+        }
+
+        /* ==========================================================================
+           تهيئة الماسورة للاتصال السريع الدائم
+           ========================================================================== */
+        function initSystem() {
+            connectWebSocket();
+            fetchAdminStats();
+            setInterval(fetchAdminStats, 15000); 
+        }
+
+        function connectWebSocket() {
+            const wsProtocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            wsConnection = new WebSocket(`${wsProtocol}//${location.host}/api/v1/ws/stream`);
+
+            wsConnection.onopen = () => {
+                console.log("EG Pipe Open");
+                wsConnection.send(JSON.stringify({ auth: API_KEY }));
+            };
+
+            wsConnection.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handleExtractionResult(data);
+            };
+
+            wsConnection.onclose = () => {
+                setTimeout(connectWebSocket, 5000);
+            };
+        }
+
+        /* ==========================================================================
+           نظام الاستخراج والبحث وعرض النتائج
+           ========================================================================== */
+        async function requestExtraction() {
+            const url = document.getElementById("media-url").value.trim();
+            if (!url) return;
+
+            document.getElementById("main-loader").style.display = "block";
+            document.getElementById("result-display").style.display = "none";
+            document.getElementById("btn-submit").disabled = true;
+
+            const isAudio = document.getElementById("opt-audio").checked;
+            const refresh = document.getElementById("opt-refresh").checked;
+
+            if (wsConnection && wsConnection.readyState === WebSocket.OPEN && !refresh) {
+                wsConnection.send(JSON.stringify({ url: url, audio_only: isAudio }));
+            } else {
+                try {
+                    const res = await fetch(`${BASE_URL}/api/v1/extract?url=${encodeURIComponent(url)}&audio_only=${isAudio}&force_refresh=${refresh}`, {
+                        headers: { 'X-Titan-Key': API_KEY, 'Accept': 'application/json' }
+                    });
+                    const data = await res.json();
+                    handleExtractionResult(data);
+                } catch (e) {
+                    alert("خطأ في الاتصال بسيرفر EG.");
+                    resetExtractionUI();
+                }
+            }
+        }
+
+        document.getElementById('media-url').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') requestExtraction();
         });
 
-        // رسم النتائج في الواجهة
-        function renderResults(data, isAudioOnly) {
-            // الإحصائيات
-            document.getElementById('res-time').textContent = `${data.process_time_ms} ms`;
-            document.getElementById('res-method').textContent = data.extraction_method;
-            const cacheEl = document.getElementById('res-cache');
-            cacheEl.innerHTML = data.cached ? '<span style="color:var(--success)"><i class="fa-solid fa-bolt"></i> كاش سريع</span>' : '<i class="fa-solid fa-globe"></i> استخراج حي';
-
-            // البيانات الأساسية
-            document.getElementById('res-title').textContent = data.title;
-            
-            // الشارات
-            const badges = document.getElementById('res-badges');
-            badges.innerHTML = `<span class="badge">ID: ${data.video_id}</span>`;
-            if (data.is_live) {
-                badges.innerHTML += `<span class="badge" style="background: rgba(239,68,68,0.1); color: var(--danger);">🔴 بث مباشر</span>`;
-            } else if (data.duration > 0) {
-                const m = Math.floor(data.duration / 60);
-                const s = data.duration % 60;
-                badges.innerHTML += `<span class="badge">⏱️ ${m}:${s < 10 ? '0'+s : s}</span>`;
-            }
-
-            // المشغل السينمائي الأسود
-            const playerWrapper = document.getElementById('player-wrapper');
-            playerWrapper.innerHTML = '';
-            
-            let posterUrl = '';
-            if (data.thumbnails && data.thumbnails.length > 0) {
-                posterUrl = data.thumbnails[data.thumbnails.length - 1].url;
-            }
-
-            const mediaEl = document.createElement(isAudioOnly && !data.is_live ? 'audio' : 'video');
-            mediaEl.controls = true;
-            mediaEl.src = data.direct_stream_url;
-            mediaEl.poster = posterUrl; // صورة الغلاف تظهر قبل التشغيل
-            
-            // لو كان صوت فقط، نعرض الصورة كخلفية للمربع الأسود
-            if (isAudioOnly && posterUrl) {
-                playerWrapper.style.backgroundImage = `url('${posterUrl}')`;
-                playerWrapper.style.backgroundSize = 'contain';
-                playerWrapper.style.backgroundPosition = 'center';
-                playerWrapper.style.backgroundRepeat = 'no-repeat';
-                mediaEl.style.background = 'rgba(0,0,0,0.6)'; // تغميق خفيف فوق الصورة
-            } else {
-                playerWrapper.style.backgroundImage = 'none';
-            }
-
-            playerWrapper.appendChild(mediaEl);
-
-            // تعبئة الجداول الذكية
-            populateTable('table-muxed', 'sec-muxed', data.smart_formats.best_muxed);
-            populateTable('table-audio', 'sec-audio', data.smart_formats.audio_only, true);
-            populateTable('table-video', 'sec-video', data.smart_formats.video_only);
-
-            // إظهار النتائج
-            document.getElementById('results-area').style.display = 'block';
-            document.getElementById('results-area').scrollIntoView({ behavior: 'smooth', block: 'start' });
-        }
-
-        // دالة مساعدة لتعبئة الجداول
-        function populateTable(tableId, secId, formats, isAudio = false) {
-            const tbody = document.querySelector(`#${tableId} tbody`);
-            const sec = document.getElementById(secId);
-            tbody.innerHTML = '';
-
-            if (!formats || formats.length === 0) {
-                sec.style.display = 'none';
+        function handleExtractionResult(data) {
+            resetExtractionUI();
+            if (!data.success) {
+                alert("فشل الاستخراج: " + data.message);
                 return;
             }
 
-            sec.style.display = 'block';
-            formats.forEach(f => {
-                const tr = document.createElement('tr');
-                if(isAudio) {
-                    tr.innerHTML = `
-                        <td>${f.format_id}</td>
-                        <td><span style="background:var(--text-main);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem;">${f.ext}</span></td>
-                        <td dir="ltr">${f.resolution}</td>
-                        <td>${f.acodec}</td>
-                        <td><a href="${f.url}" target="_blank" class="btn-download"><i class="fa-solid fa-play"></i> تشغيل</a></td>
-                    `;
-                } else {
-                    tr.innerHTML = `
-                        <td>${f.format_id}</td>
-                        <td><span style="background:var(--text-main);color:#fff;padding:2px 6px;border-radius:4px;font-size:0.8rem;">${f.ext}</span></td>
-                        <td dir="ltr" style="font-weight:800;color:var(--accent);">${f.resolution}</td>
-                        <td>${f.vcodec}</td>
-                        ${tableId === 'table-muxed' ? `<td>${f.acodec}</td>` : ''}
-                        <td><a href="${f.url}" target="_blank" class="btn-download"><i class="fa-solid fa-play"></i> تشغيل</a></td>
-                    `;
-                }
+            document.getElementById("result-display").style.display = "block";
+            document.getElementById("res-title").innerText = data.title;
+            document.getElementById("res-time").innerText = `${data.process_time_ms} ms`;
+            document.getElementById("res-method").innerText = data.cached ? "⚡ مسحوب من الرام" : "🌐 استخراج حي";
+            document.getElementById("res-live").innerText = data.is_live ? "بث مباشر" : "مسجل";
+
+            // المشغل
+            const pBox = document.getElementById("player-box");
+            pBox.innerHTML = "";
+            let mediaType = data.smart_formats && data.smart_formats.audio_only && data.smart_formats.audio_only.length > 0 ? "audio" : "video";
+            if(data.is_live) mediaType = "video";
+            
+            const player = document.createElement(mediaType);
+            player.controls = true;
+            player.src = data.direct_stream_url;
+            pBox.appendChild(player);
+
+            // الجداول وتحديث أزرار التحميل
+            const tbody = document.querySelector("#formats-table tbody");
+            tbody.innerHTML = "";
+            
+            let allFormats = [];
+            if(data.smart_formats) {
+                allFormats = [...data.smart_formats.best_muxed, ...data.smart_formats.audio_only, ...data.smart_formats.video_only];
+            }
+
+            allFormats.slice(0, 15).forEach(f => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td><span class="badge-res">${f.ext}</span></td>
+                    <td dir="ltr" style="font-weight:800; color:var(--text-main);">${f.resolution}</td>
+                    <td>${f.vcodec !== 'none' ? f.vcodec : f.acodec}</td>
+                    <td>
+                        <a href="${f.url}" target="_blank" class="btn-action"><i class="fa-solid fa-download"></i></a>
+                        <a href="${f.url}" target="_blank" class="btn-action" style="background:#000;"><i class="fa-solid fa-play"></i></a>
+                    </td>
+                `;
                 tbody.appendChild(tr);
             });
+
+            saveToHistory(data.title, mediaType, data.direct_stream_url);
+        }
+
+        function resetExtractionUI() {
+            document.getElementById("main-loader").style.display = "none";
+            document.getElementById("btn-submit").disabled = false;
+        }
+
+        /* ==========================================================================
+           السجل المحلي (History)
+           ========================================================================== */
+        function saveToHistory(title, type, url) {
+            let hist = JSON.parse(localStorage.getItem("eg_history") || "[]");
+            hist.unshift({ title, type, url, time: new Date().toLocaleString('ar-EG') });
+            if(hist.length > 50) hist.pop();
+            localStorage.setItem("eg_history", JSON.stringify(hist));
+        }
+
+        function loadHistory() {
+            let hist = JSON.parse(localStorage.getItem("eg_history") || "[]");
+            const tbody = document.querySelector("#history-table tbody");
+            tbody.innerHTML = "";
+            hist.forEach(h => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="max-width:200px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${h.title}</td>
+                    <td><span class="badge-res">${h.type}</span></td>
+                    <td dir="ltr">${h.time}</td>
+                    <td><a href="${h.url}" target="_blank" class="btn-action" style="padding:6px 12px;"><i class="fa-solid fa-play"></i></a></td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function clearHistory() {
+            localStorage.removeItem("eg_history");
+            loadHistory();
+        }
+
+        /* ==========================================================================
+           اتصالات لوحة التحكم (Admin API)
+           ========================================================================== */
+        async function fetchAdminStats() {
+            try {
+                const res = await fetch(`${BASE_URL}/api/v1/admin/stats`, { headers: { 'X-Titan-Key': API_KEY } });
+                const stats = await res.json();
+                document.getElementById("stat-ws").innerText = stats.active_ws_connections;
+                document.getElementById("stat-ram").innerText = stats.memory_usage;
+                document.getElementById("stat-reqs").innerText = stats.total_requests;
+                document.getElementById("stat-cache").innerText = stats.cached_files_count;
+            } catch (e) {
+                console.error("Stats fetch failed");
+            }
+        }
+
+        async function clearServerCache() {
+            if(!confirm("مسح جميع البيانات من الرام؟")) return;
+            try {
+                const res = await fetch(`${BASE_URL}/api/v1/admin/clear_cache`, { method: "POST", headers: { 'X-Titan-Key': API_KEY } });
+                const data = await res.json();
+                if(data.success) {
+                    alert("تم تنظيف الرام.");
+                    fetchAdminStats();
+                }
+            } catch(e) {}
+        }
+
+        async function updateServerConfig() {
+            const validator = document.getElementById("cfg-validator").checked;
+            const ws = document.getElementById("cfg-ws").checked;
+            try {
+                await fetch(`${BASE_URL}/api/v1/admin/config`, { 
+                    method: "POST", 
+                    headers: { 'X-Titan-Key': API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ smart_validation_enabled: validator, allow_new_ws_connections: ws })
+                });
+            } catch(e) {}
         }
     </script>
 </body>
