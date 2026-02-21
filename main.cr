@@ -19,15 +19,19 @@ class StatsStore
   def inc_total
     @mutex.synchronize { @total_requests += 1 }
   end
+
   def inc_success
     @mutex.synchronize { @successful_requests += 1 }
   end
+
   def inc_fail
     @mutex.synchronize { @failed_requests += 1 }
   end
+
   def inc_ws
     @mutex.synchronize { @active_ws_connections += 1 }
   end
+
   def dec_ws
     @mutex.synchronize { @active_ws_connections -= 1 }
   end
@@ -35,13 +39,51 @@ end
 
 STATS = StatsStore.new
 
+alias LogEntry = {
+  time: String, 
+  ip: String, 
+  country: String, 
+  url: String, 
+  success: Bool, 
+  process_time_ms: Float64
+}
+
+class RequestLogger
+  @logs = Array(LogEntry).new
+  @mutex = Mutex.new
+
+  def add(ip : String, country : String, url : String, success : Bool, process_time : Float64)
+    @mutex.synchronize do
+      @logs.unshift({
+        time: Time.utc.to_s, 
+        ip: ip, 
+        country: country, 
+        url: url, 
+        success: success, 
+        process_time_ms: process_time
+      })
+      if @logs.size > 200
+        @logs.pop
+      end
+    end
+  end
+
+  def get_logs
+    @mutex.synchronize { @logs.dup }
+  end
+end
+
+LOGS = RequestLogger.new
+
 class DynamicConfig
+  property api_enabled : Bool = true
   property smart_validation_enabled : Bool = true
   property allow_new_ws_connections : Bool = true
   @mutex = Mutex.new
 
-  def update(smart : Bool?, ws : Bool?)
+  def update(api : Bool?, smart : Bool?, ws : Bool?)
     @mutex.synchronize do
+      @api_enabled = api unless api.nil?
       @smart_validation_enabled = smart unless smart.nil?
       @allow_new_ws_connections = ws unless ws.nil?
     end
@@ -153,7 +195,9 @@ class CookieManager
       return nil if @pool.empty?
       now = Time.utc
       candidates = @pool.select { |c| !@last_used.has_key?(c) || (now - @last_used[c]).total_seconds > 2 }
-      candidates = @pool if candidates.empty?
+      if candidates.empty?
+        candidates = @pool
+      end
       chosen = candidates.sample
       @last_used[chosen] = now
       chosen
@@ -203,11 +247,15 @@ class MemoryCache
   end
 
   def clear_all
-    @mutex.synchronize { @store.clear }
+    @mutex.synchronize do
+      @store.clear
+    end
   end
 
   def size
-    @mutex.synchronize { @store.size }
+    @mutex.synchronize do
+      @store.size
+    end
   end
 end
 
@@ -215,33 +263,51 @@ CACHE = MemoryCache.new
 
 def execute_yt_dlp(query : String, cookie : String?, attempt : Int32)
   args = [
-    "--dump-json", "--no-warnings", "--skip-download", "--no-playlist",
-    "--socket-timeout", "15", "--compat-options", "no-youtube-unavailable-videos",
-    "--geo-bypass", "--impersonate", "chrome"
+    "--dump-json", 
+    "--no-warnings", 
+    "--skip-download", 
+    "--no-playlist", 
+    "--socket-timeout", "10", 
+    "--compat-options", "no-youtube-unavailable-videos", 
+    "--geo-bypass", 
+    "--impersonate", "chrome"
   ]
   
+  method = ""
+
   if cookie && !cookie.empty?
     args << "--cookies"
     args << cookie
-  end
-
-  method = ""
-  if attempt == 1
-    args << "--extractor-args" << "youtube:player_client=web" << "--remote-components" << "ejs:github,ejs:npm"
-    method = "Crystal Engine (Web + Chrome)"
-  elsif attempt == 2
-    args << "--extractor-args" << "youtube:player_client=android,web;player_skip=configs" << "--remote-components" << "ejs:github,ejs:npm"
-    method = "Crystal Engine (Android/Web + Chrome)"
+    if attempt == 1
+      args << "--extractor-args"
+      args << "youtube:player_client=web;player_skip=configs"
+      args << "--remote-components"
+      args << "ejs:github,ejs:npm"
+      method = "Titan Engine (Web + Cookie + EJS Fast)"
+    else
+      args << "--extractor-args"
+      args << "youtube:player_client=mweb;player_skip=configs"
+      args << "--remote-components"
+      args << "ejs:github,ejs:npm"
+      method = "Titan Engine (Mobile Web + Cookie + EJS)"
+    end
   else
-    args << "--extractor-args" << "youtube:player_client=web"
-    method = "Crystal Engine (Web Fallback)"
+    if attempt == 1
+      args << "--extractor-args"
+      args << "youtube:player_client=android,ios;player_skip=webpage,configs"
+      method = "Titan Engine (Android API - Lightning)"
+    else
+      args << "--extractor-args"
+      args << "youtube:player_client=ios,android;player_skip=webpage,configs"
+      method = "Titan Engine (iOS API - Lightning)"
+    end
   end
 
-  final_query = query
   if !query.starts_with?("http") && !query.starts_with?("ytsearch")
-    final_query = "ytsearch1:#{query}"
+    args << "ytsearch1:#{query}"
+  else
+    args << query
   end
-  args << final_query
 
   stdout = IO::Memory.new
   stderr = IO::Memory.new
@@ -249,7 +315,9 @@ def execute_yt_dlp(query : String, cookie : String?, attempt : Int32)
 
   if !status.success?
     err_msg = stderr.to_s.strip
-    err_msg = "Unknown Error" if err_msg.empty?
+    if err_msg.empty?
+      err_msg = "Unknown Error"
+    end
     raise "YT-DLP Error: #{err_msg}"
   end
 
@@ -265,7 +333,7 @@ end
 
 def extract_smart(query : String)
   last_err = ""
-  3.times do |i|
+  2.times do |i|
     attempt = i + 1
     cookie = COOKIES.get_cookie
     begin
@@ -279,7 +347,7 @@ def extract_smart(query : String)
         COOKIES.report_failure(cookie)
       end
     end
-    sleep 0.3
+    sleep(300.milliseconds)
   end
   raise last_err
 end
@@ -292,19 +360,35 @@ def build_smart_formats(raw_formats : Array(JSON::Any))
   raw_formats.each do |rf|
     ext = rf["ext"]?.try(&.as_s?) || ""
     proto = rf["protocol"]?.try(&.as_s?) || ""
-    next if ext == "mhtml" || ext == "sb0" || ext == "sb1" || proto.starts_with?("mhtml")
-    next if !proto.starts_with?("http") && !proto.starts_with?("m3u8")
+    
+    if ext == "mhtml" || ext == "sb0" || ext == "sb1" || proto.starts_with?("mhtml")
+      next
+    end
+    
+    if !proto.starts_with?("http") && !proto.starts_with?("m3u8")
+      next
+    end
 
     vcodec = rf["vcodec"]?.try(&.as_s?) || "none"
     acodec = rf["acodec"]?.try(&.as_s?) || "none"
     url = rf["url"]?.try(&.as_s?) || ""
-    next if url.empty?
+    
+    if url.empty?
+      next
+    end
 
     fmt_id = rf["format_id"]?.try(&.as_s?) || "0"
     res = rf["format_note"]?.try(&.as_s?) || rf["resolution"]?.try(&.as_s?) || "unknown"
 
     score = 0
-    score += 10 if ext.includes?("mp4") || ext.includes?("m4a")
+    if ext.includes?("mp4") || ext.includes?("m4a")
+      score += 10
+    end
+    
+    if res_match = res.match(/\d+/)
+      score += res_match[0].to_i
+    end
+    
     if tbr = rf["tbr"]?.try(&.as_f?)
       score += (tbr / 100).to_i
     end
@@ -312,7 +396,9 @@ def build_smart_formats(raw_formats : Array(JSON::Any))
     info = StreamInfo.new(fmt_id, ext, res, vcodec, acodec, url, score)
 
     if vcodec != "none" && acodec != "none"
-      info.quality_score += 50 unless proto.includes?("m3u8")
+      if !proto.includes?("m3u8")
+        info.quality_score += 5000
+      end
       best_muxed << info
     elsif vcodec == "none" && acodec != "none"
       audio_only << info
@@ -325,15 +411,27 @@ def build_smart_formats(raw_formats : Array(JSON::Any))
   audio_only.sort! { |a, b| b.quality_score <=> a.quality_score }
   video_only.sort! { |a, b| b.quality_score <=> a.quality_score }
 
-  best_a = audio_only.empty? ? "" : audio_only.first.url
-  best_v = best_muxed.empty? ? (video_only.empty? ? "" : video_only.first.url) : best_muxed.first.url
+  best_a = ""
+  if !audio_only.empty?
+    best_a = audio_only.first.url
+  end
+  
+  best_v = ""
+  if !best_muxed.empty?
+    best_v = best_muxed.first.url
+  elsif !video_only.empty?
+    best_v = video_only.first.url
+  end
 
   {SmartFormats.new(best_muxed, audio_only, video_only), best_a, best_v}
 end
 
 def verify_auth(env)
   key = env.request.headers["X-Titan-Key"]? || env.request.headers["X-Ultra-Key"]?
-  key == API_KEY
+  if key == API_KEY
+    return true
+  end
+  return false
 end
 
 before_all do |env|
@@ -359,10 +457,21 @@ end
 
 get "/api/v1/extract" do |env|
   STATS.inc_total
-  start_time = Time.monotonic
+  start_time = Time.utc
+  
+  ip = env.request.headers["Fly-Client-IP"]? || env.request.headers["X-Forwarded-For"]? || env.request.remote_address.try(&.to_s) || "Unknown"
+  country = env.request.headers["Fly-Region"]? || env.request.headers["CF-IPCountry"]? || "Unknown"
+
+  if !CONFIG.api_enabled
+    STATS.inc_fail
+    LOGS.add(ip, country, env.params.query["url"]?.to_s, false, 0.0)
+    env.response.content_type = "application/json"
+    halt env, 503, %({"success":false,"message":"API Locked by Administrator."})
+  end
 
   if !verify_auth(env)
     STATS.inc_fail
+    LOGS.add(ip, country, env.params.query["url"]?.to_s, false, 0.0)
     env.response.content_type = "application/json"
     halt env, 403, %({"success":false,"message":"Forbidden"})
   end
@@ -386,8 +495,10 @@ get "/api/v1/extract" do |env|
       begin
         parsed_cache = JSON.parse(cached_json).as_h
         parsed_cache["cached"] = JSON::Any.new(true)
-        parsed_cache["process_time_ms"] = JSON::Any.new((Time.monotonic - start_time).total_milliseconds)
+        process_time = (Time.utc - start_time).total_milliseconds
+        parsed_cache["process_time_ms"] = JSON::Any.new(process_time)
         STATS.inc_success
+        LOGS.add(ip, country, url, true, process_time)
         env.response.content_type = "application/json"
         halt env, 200, parsed_cache.to_json
       rescue
@@ -400,11 +511,35 @@ get "/api/v1/extract" do |env|
     raw_formats = info["formats"]?.try(&.as_a?) || [] of JSON::Any
     sf, best_a, best_v = build_smart_formats(raw_formats)
 
-    direct_url = audio_only ? (best_a.empty? ? best_v : best_a) : (best_v.empty? ? best_a : best_v)
-    direct_url = info["url"]?.try(&.as_s?) || "" if direct_url.empty?
+    direct_url = ""
+    if audio_only
+      if best_a.empty?
+        direct_url = best_v
+      else
+        direct_url = best_a
+      end
+    else
+      if best_v.empty?
+        direct_url = best_a
+      else
+        direct_url = best_v
+      end
+    end
 
-    is_live = info["is_live"]?.try(&.as_bool?) || info["was_live"]?.try(&.as_bool?) || false
-    duration = (!is_live && info["duration"]?.try(&.as_f?)) ? info["duration"].as_f.to_i : 0
+    if direct_url.empty?
+      direct_url = info["url"]?.try(&.as_s?) || ""
+    end
+
+    is_live = false
+    if info["is_live"]?.try(&.as_bool?) || info["was_live"]?.try(&.as_bool?)
+      is_live = true
+    end
+    
+    duration = 0
+    if !is_live && info["duration"]?.try(&.as_f?)
+      duration = info["duration"].as_f.to_i
+    end
+    
     vid_id = info["id"]?.try(&.as_s?) || ""
     title = info["title"]?.try(&.as_s?) || "Unknown"
 
@@ -418,9 +553,11 @@ get "/api/v1/extract" do |env|
       end
     end
 
+    process_time = (Time.utc - start_time).total_milliseconds
+
     resp = MediaResponse.new(
       true,
-      (Time.monotonic - start_time).total_milliseconds,
+      process_time,
       false,
       method,
       vid_id,
@@ -436,25 +573,28 @@ get "/api/v1/extract" do |env|
     resp_json = resp.to_json
     CACHE.set(cache_key, resp_json)
     STATS.inc_success
+    LOGS.add(ip, country, url, true, process_time)
     
     env.response.content_type = "application/json"
     resp_json
   rescue ex
     STATS.inc_fail
+    process_time = (Time.utc - start_time).total_milliseconds
+    LOGS.add(ip, country, url.to_s, false, process_time)
     env.response.content_type = "application/json"
-    halt env, 500, %({"success":false,"message":#{ex.message.to_json},"process_time_ms":#{(Time.monotonic - start_time).total_milliseconds}})
+    halt env, 500, %({"success":false,"message":#{ex.message.to_json},"process_time_ms":#{process_time}})
   end
 end
 
 ws "/api/v1/ws/stream" do |socket|
-  unless CONFIG.allow_new_ws_connections
+  if !CONFIG.allow_new_ws_connections || !CONFIG.api_enabled
     socket.close
   end
 
   authenticated = false
 
   socket.on_message do |msg|
-    start_time = Time.monotonic
+    start_time = Time.utc
     begin
       req = JSON.parse(msg)
       
@@ -475,7 +615,9 @@ ws "/api/v1/ws/stream" do |socket|
       end
 
       audio_only = req["audio_only"]?.try(&.as_bool?)
-      audio_only = true if audio_only.nil?
+      if audio_only.nil?
+        audio_only = true
+      end
 
       STATS.inc_total
       cache_key = "#{url}_audio:#{audio_only}"
@@ -483,7 +625,7 @@ ws "/api/v1/ws/stream" do |socket|
       if cached_json = CACHE.get(cache_key)
         parsed_cache = JSON.parse(cached_json).as_h
         parsed_cache["cached"] = JSON::Any.new(true)
-        parsed_cache["process_time_ms"] = JSON::Any.new((Time.monotonic - start_time).total_milliseconds)
+        parsed_cache["process_time_ms"] = JSON::Any.new((Time.utc - start_time).total_milliseconds)
         STATS.inc_success
         socket.send(parsed_cache.to_json)
         next
@@ -493,17 +635,41 @@ ws "/api/v1/ws/stream" do |socket|
       raw_formats = info["formats"]?.try(&.as_a?) || [] of JSON::Any
       sf, best_a, best_v = build_smart_formats(raw_formats)
 
-      direct_url = audio_only ? (best_a.empty? ? best_v : best_a) : (best_v.empty? ? best_a : best_v)
-      direct_url = info["url"]?.try(&.as_s?) || "" if direct_url.empty?
+      direct_url = ""
+      if audio_only
+        if best_a.empty?
+          direct_url = best_v
+        else
+          direct_url = best_a
+        end
+      else
+        if best_v.empty?
+          direct_url = best_a
+        else
+          direct_url = best_v
+        end
+      end
 
-      is_live = info["is_live"]?.try(&.as_bool?) || info["was_live"]?.try(&.as_bool?) || false
-      duration = (!is_live && info["duration"]?.try(&.as_f?)) ? info["duration"].as_f.to_i : 0
+      if direct_url.empty?
+        direct_url = info["url"]?.try(&.as_s?) || ""
+      end
+
+      is_live = false
+      if info["is_live"]?.try(&.as_bool?) || info["was_live"]?.try(&.as_bool?)
+        is_live = true
+      end
+      
+      duration = 0
+      if !is_live && info["duration"]?.try(&.as_f?)
+        duration = info["duration"].as_f.to_i
+      end
+      
       vid_id = info["id"]?.try(&.as_s?) || ""
       title = info["title"]?.try(&.as_s?) || "Unknown"
 
       resp = MediaResponse.new(
         true,
-        (Time.monotonic - start_time).total_milliseconds,
+        (Time.utc - start_time).total_milliseconds,
         false,
         method,
         vid_id,
@@ -522,12 +688,14 @@ ws "/api/v1/ws/stream" do |socket|
       socket.send(resp_json)
     rescue ex
       STATS.inc_fail
-      socket.send(%({"success":false,"message":#{ex.message.to_json},"process_time_ms":#{(Time.monotonic - start_time).total_milliseconds}}))
+      socket.send(%({"success":false,"message":#{ex.message.to_json},"process_time_ms":#{(Time.utc - start_time).total_milliseconds}}))
     end
   end
 
   socket.on_close do
-    STATS.dec_ws if authenticated
+    if authenticated
+      STATS.dec_ws
+    end
   end
 end
 
@@ -539,6 +707,7 @@ get "/api/v1/admin/stats" do |env|
   env.response.content_type = "application/json"
   {
     status: "online",
+    api_enabled: CONFIG.api_enabled,
     uptime_seconds: (Time.utc - SERVER_START).total_seconds,
     total_requests: STATS.total_requests,
     successful_requests: STATS.successful_requests,
@@ -546,7 +715,8 @@ get "/api/v1/admin/stats" do |env|
     active_ws_connections: STATS.active_ws_connections,
     cached_files_count: CACHE.size,
     memory_usage: get_memory_usage,
-    available_cookies: COOKIES.pool.size
+    available_cookies: COOKIES.pool.size,
+    recent_logs: LOGS.get_logs
   }.to_json
 end
 
@@ -570,13 +740,15 @@ post "/api/v1/admin/config" do |env|
     req = JSON.parse(body)
     smart = req["smart_validation_enabled"]?.try(&.as_bool?)
     ws = req["allow_new_ws_connections"]?.try(&.as_bool?)
-    CONFIG.update(smart, ws)
+    api_status = req["api_enabled"]?.try(&.as_bool?)
+    CONFIG.update(api_status, smart, ws)
   rescue
   end
   env.response.content_type = "application/json"
   {
     success: true,
     current_config: {
+      api_enabled: CONFIG.api_enabled,
       smart_validation_enabled: CONFIG.smart_validation_enabled,
       allow_new_ws_connections: CONFIG.allow_new_ws_connections
     }
@@ -585,15 +757,12 @@ end
 
 spawn do
   loop do
-    sleep 2.minutes
+    sleep(120.seconds)
     CACHE.clean
     COOKIES.refresh
   end
 end
 
-# -------------------------------------------------------------
-# التعديل النهائي والصحيح لأحدث إصدارات Crystal & Kemal (2026)
-# -------------------------------------------------------------
 Kemal.config.host_binding = "0.0.0.0"
 Kemal.config.port = ENV.fetch("PORT", "8080").to_i
 Kemal.run
