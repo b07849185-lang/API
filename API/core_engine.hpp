@@ -30,8 +30,8 @@ public:
     CoreEngine() {}
 
     json extract_raw(const std::string& raw_query, const std::string& cookie_path, int attempt) {
+        // تم إزالة الأوامر غير المتوافقة مع الـ CLI لضمان نجاح المحاولة الأولى فوراً
         std::string cmd = "yt-dlp --dump-json --no-warnings --skip-download --no-playlist "
-                          "--lazy-extractors --allowed-extractors youtube,youtube:search "
                           "--no-check-formats --socket-timeout 5 --retries 0 "
                           "--compat-options no-youtube-unavailable-videos ";
         
@@ -39,6 +39,7 @@ public:
             cmd += "--cookies \"" + cookie_path + "\" ";
         }
 
+        // استخدام curl_cffi (chrome) مع التخطي الذكي للصفحات
         if (attempt == 1) {
             cmd += "--impersonate chrome --extractor-args \"youtube:player_client=android,web;player_skip=webpage,configs\" --remote-components ejs:github ";
         } else if (attempt == 2) {
@@ -68,6 +69,7 @@ public:
             json j;
             std::istringstream stream(output);
             std::string line;
+            // حلقة سريعة لاقتناص كود الـ JSON فقط وتجاهل أي تحذيرات
             while (std::getline(stream, line)) {
                 if (!line.empty() && line.front() == '{') {
                     j = json::parse(line);
