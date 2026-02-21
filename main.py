@@ -12,7 +12,7 @@ import sys
 import secrets as _secrets
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, List, Dict, Any, Tuple
-from fastapi import FastAPI, HTTPException, Depends, Query, Security
+from fastapi import FastAPI, HTTPException, Depends, Query, Security, WebSocket, WebSocketDisconnect
 from fastapi.responses import ORJSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -20,6 +20,7 @@ from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 import orjson
 import yt_dlp
+import httpx  # For smart cache validation
 
 os.environ.setdefault("TZ", "UTC")
 API_KEY = os.getenv("TITAN_SECRET_KEY", "Titan_2026_Ultra_Fast")
@@ -27,9 +28,24 @@ COOKIE_DIR = os.getenv("TITAN_COOKIE_DIR", "cookies")
 MAX_CONCURRENT_EXTRACTS = int(os.getenv("MAX_THREADS", "32"))  
 CACHE_TTL = int(os.getenv("CACHE_TTL", "14400"))
 COOKIE_BAN_TIME = int(os.getenv("COOKIE_BAN_TIME", "3600"))
-# تعديل لضمان التوافق مع أي نسخة curl_cffi ومنع الخطأ 500
 IMPERSONATE_TARGET = os.getenv("YT_IMPERSONATE_TARGET", "chrome")
 YT_DLP_BIN = os.getenv("YT_DLP_BIN", "yt-dlp")
+
+# 📊 متغيرات المراقبة والإحصائيات للوحة التحكم
+API_STATS = {
+    "total_requests": 0,
+    "successful_requests": 0,
+    "failed_requests": 0,
+    "active_ws_connections": 0,
+    "server_start_time": time.time(),
+}
+
+# ⚙️ متغيرات التحكم الديناميكية (يمكن تغييرها من لوحة التحكم)
+DYNAMIC_CONFIG = {
+    "smart_validation_enabled": True,
+    "validation_interval_seconds": 7200, # ساعتين
+    "allow_new_ws_connections": True
+}
 
 try:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -92,6 +108,23 @@ def dict_to_model(m):
         return m
     except Exception:
         return {}
+
+# 🖥️ حساب استهلاك الرام (للينكس/الدوكر)
+def get_memory_usage() -> str:
+    try:
+        with open('/proc/meminfo', 'r') as f:
+            lines = f.readlines()
+        mem_info = {}
+        for line in lines:
+            parts = line.split(':')
+            if len(parts) == 2:
+                mem_info[parts[0].strip()] = int(parts[1].split()[0])
+        total = mem_info.get('MemTotal', 0)
+        free = mem_info.get('MemAvailable', mem_info.get('MemFree', 0))
+        used = total - free
+        return f"{used / 1024:.2f} MB / {total / 1024:.2f} MB"
+    except Exception:
+        return "Unknown (Non-Linux OS)"
 
 class EnterpriseCookieManager:
     def __init__(self, directory: str = COOKIE_DIR, ban_time: int = COOKIE_BAN_TIME, reuse_delay: int = 2):
@@ -191,6 +224,18 @@ class MemoryCache:
                         pass
         except Exception:
             pass
+            
+    async def clear_all(self):
+        async with self._lock:
+            self._cache.clear()
+
+    async def get_all_items(self):
+        async with self._lock:
+            return dict(self._cache)
+
+    async def remove_key(self, key: str):
+        async with self._lock:
+            self._cache.pop(key, None)
 
 cache_engine = MemoryCache()
 
@@ -248,8 +293,6 @@ class TitanExtractor:
             if self.impersonate_supported: 
                 opts["impersonate"] = IMPERSONATE_TARGET
 
-            # تم التعديل هنا: التركيز الكامل على Web عشان الكوكيز تشتغل صح
-            # وتحويل remote_components إلى List لتجنب انهيار EJS
             if attempt == 1:
                 opts["remote_components"] = ["ejs:github", "ejs:npm"]
                 opts["extractor_args"] = {"youtube": {"player_client": ["web"]}}
@@ -263,7 +306,6 @@ class TitanExtractor:
             with yt_dlp.YoutubeDL(opts) as ydl:
                 return ydl.extract_info(url, download=False)
         except Exception as e:
-            # حماية ذكية: لو مشكلة المتصفح الوهمي حصلت، بيعيد الطلب بدونها فورا بدل Error 500
             err_str = str(e).lower()
             if "impersonate" in err_str or "target" in err_str:
                 opts.pop("impersonate", None)
@@ -362,10 +404,48 @@ async def verify_auth(key: str = Security(api_key_header)):
     except Exception:
         raise HTTPException(status_code=403, detail="Forbidden")
 
+# 🕵️ منظف الكاش الذكي (Smart Validator)
+async def _smart_cache_validator():
+    """يفحص الروابط المحفوظة كل ساعتين ويمسح التالف منها"""
+    while True:
+        try:
+            await asyncio.sleep(DYNAMIC_CONFIG["validation_interval_seconds"])
+            if not DYNAMIC_CONFIG["smart_validation_enabled"]:
+                continue
+                
+            if logger: logger.info("Starting Smart Cache Validation...")
+            all_items = await cache_engine.get_all_items()
+            keys_to_remove = []
+            
+            async with httpx.AsyncClient(verify=False, timeout=5.0) as client:
+                for key, data_obj in all_items.items():
+                    try:
+                        data = data_obj.get("data", {})
+                        url = data.get("direct_stream_url")
+                        if url:
+                            # فحص سريع للرابط
+                            resp = await client.head(url)
+                            # إذا كان يوتيوب حظر الرابط أو انتهت صلاحيته
+                            if resp.status_code in [403, 404, 410]:
+                                keys_to_remove.append(key)
+                    except Exception:
+                        keys_to_remove.append(key)
+                        
+            # مسح الروابط الميتة
+            for k in keys_to_remove:
+                await cache_engine.remove_key(k)
+                
+            if logger: logger.info(f"Smart Validation done. Removed {len(keys_to_remove)} dead links.")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            if logger: logger.error(f"Smart Validator Error: {e}")
+
 @app.on_event("startup")
 async def startup_event():
     try:
         app.state._bg_task = asyncio.create_task(_background_tasks())
+        app.state._validator_task = asyncio.create_task(_smart_cache_validator())
     except Exception:
         pass
 
@@ -387,8 +467,9 @@ async def _background_tasks():
 async def shutdown_event():
     try:
         task = getattr(app.state, "_bg_task", None)
-        if task:
-            task.cancel()
+        if task: task.cancel()
+        val_task = getattr(app.state, "_validator_task", None)
+        if val_task: val_task.cancel()
     except Exception:
         pass
 
@@ -401,6 +482,37 @@ async def index():
         return ORJSONResponse({"system": "TitanOS Core", "status": "Active", "engine": "Zero Latency Engine"})
     except Exception:
         return ORJSONResponse({"status": "Active"})
+
+# 📊 مسارات لوحة التحكم (Admin Endpoints)
+@app.get("/api/v1/admin/stats")
+async def admin_stats(auth: str = Depends(verify_auth)):
+    cache_items = await cache_engine.get_all_items()
+    uptime = time.time() - API_STATS["server_start_time"]
+    return ORJSONResponse({
+        "status": "online",
+        "uptime_seconds": round(uptime, 2),
+        "total_requests": API_STATS["total_requests"],
+        "successful_requests": API_STATS["successful_requests"],
+        "failed_requests": API_STATS["failed_requests"],
+        "active_ws_connections": API_STATS["active_ws_connections"],
+        "cached_files_count": len(cache_items),
+        "memory_usage": get_memory_usage(),
+        "available_cookies": len(cookie_vault.pool)
+    })
+
+@app.post("/api/v1/admin/clear_cache")
+async def admin_clear_cache(auth: str = Depends(verify_auth)):
+    await cache_engine.clear_all()
+    return ORJSONResponse({"success": True, "message": "Cache completely cleared."})
+
+@app.post("/api/v1/admin/config")
+async def admin_update_config(config: dict, auth: str = Depends(verify_auth)):
+    global DYNAMIC_CONFIG
+    if "smart_validation_enabled" in config:
+        DYNAMIC_CONFIG["smart_validation_enabled"] = bool(config["smart_validation_enabled"])
+    if "allow_new_ws_connections" in config:
+        DYNAMIC_CONFIG["allow_new_ws_connections"] = bool(config["allow_new_ws_connections"])
+    return ORJSONResponse({"success": True, "current_config": DYNAMIC_CONFIG})
 
 def build_smart_formats(formats_list: List[dict]) -> Tuple[SmartFormats, str, str]:
     best_muxed, audio_only, video_only = [], [], []
@@ -456,6 +568,7 @@ def build_smart_formats(formats_list: List[dict]) -> Tuple[SmartFormats, str, st
 
 @app.get("/api/v1/extract", response_model=MediaResponse)
 async def extract_media(url: str = Query(...), audio_only: bool = Query(True), force_refresh: bool = Query(False), auth: str = Depends(verify_auth)):
+    API_STATS["total_requests"] += 1
     try:
         t0 = time.perf_counter()
     except Exception:
@@ -476,6 +589,7 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
                         cached['process_time_ms'] = round((time.perf_counter() - t0) * 1000, 3)
                     except Exception:
                         pass
+                    API_STATS["successful_requests"] += 1
                     return ORJSONResponse(cached)
             except Exception:
                 pass
@@ -560,9 +674,11 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
         except Exception:
             pass
             
+        API_STATS["successful_requests"] += 1
         return ORJSONResponse(response_data)
 
     except Exception as e:
+        API_STATS["failed_requests"] += 1
         try:
             p_time = round((time.perf_counter() - t0) * 1000, 3)
         except Exception:
@@ -571,6 +687,101 @@ async def extract_media(url: str = Query(...), audio_only: bool = Query(True), f
             return ORJSONResponse(status_code=500, content=dict_to_model(ErrorResponse(success=False, error_code=500, message=str(e), process_time_ms=p_time)))
         except Exception:
             return ORJSONResponse(status_code=500, content={"success": False, "error_code": 500, "message": "Critical Failure", "process_time_ms": 0.0})
+
+
+# ⚡ الماسورة الدائمة (WebSocket Stream)
+@app.websocket("/api/v1/ws/stream")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    if not DYNAMIC_CONFIG["allow_new_ws_connections"]:
+        await websocket.close(code=1008, reason="New connections are currently disabled.")
+        return
+
+    # التوثيق عبر إرسال رسالة أولية تحتوي على المفتاح
+    try:
+        auth_msg = await websocket.receive_text()
+        auth_data = orjson.loads(auth_msg)
+        if auth_data.get("auth") != API_KEY:
+            await websocket.close(code=1008)
+            return
+    except Exception:
+        await websocket.close(code=1008)
+        return
+
+    API_STATS["active_ws_connections"] += 1
+    
+    try:
+        while True:
+            # استقبال الطلبات بصيغة JSON (مثال: {"url": "...", "audio_only": True})
+            data = await websocket.receive_text()
+            request_data = orjson.loads(data)
+            
+            url = request_data.get("url")
+            audio_only = request_data.get("audio_only", True)
+            
+            if not url:
+                await websocket.send_text(orjson.dumps({"success": False, "message": "Missing URL"}).decode())
+                continue
+                
+            API_STATS["total_requests"] += 1
+            t0 = time.perf_counter()
+            cache_key = f"{url}_audio:{audio_only}"
+
+            # الفحص في الكاش أولاً
+            cached = await cache_engine.get(cache_key)
+            if cached:
+                cached['cached'] = True
+                cached['process_time_ms'] = round((time.perf_counter() - t0) * 1000, 3)
+                API_STATS["successful_requests"] += 1
+                await websocket.send_text(orjson.dumps(cached).decode())
+                continue
+
+            try:
+                # الاستخراج
+                info, method = await titan_core.extract_smart(url)
+                raw_formats = info.get("formats", [])
+                if not isinstance(raw_formats, list): raw_formats = []
+                smart_formats, best_a, best_v = build_smart_formats(raw_formats)
+                
+                direct_url = (best_a if best_a else best_v) if audio_only else (best_v if best_v else best_a)
+                if not direct_url: direct_url = str(info.get("url", ""))
+                if not direct_url and len(raw_formats) > 0: direct_url = str(raw_formats[-1].get("url", ""))
+                if not direct_url: raise ValueError("Extraction yielded no valid streams.")
+
+                dur_raw = info.get("duration")
+                is_live = bool(info.get("is_live", False) or info.get("was_live", False))
+                dur = 0 if is_live or str(dur_raw).lower() in ["live", "none"] else int(dur_raw or 0)
+
+                response_data = {
+                    "success": True,
+                    "process_time_ms": round((time.perf_counter() - t0) * 1000, 3),
+                    "cached": False,
+                    "extraction_method": str(method),
+                    "video_id": str(info.get("id", "")),
+                    "title": str(info.get("title", "Unknown")),
+                    "duration": dur,
+                    "is_live": is_live,
+                    "direct_stream_url": str(direct_url)
+                }
+                
+                await cache_engine.set(cache_key, response_data)
+                API_STATS["successful_requests"] += 1
+                await websocket.send_text(orjson.dumps(response_data).decode())
+
+            except Exception as e:
+                API_STATS["failed_requests"] += 1
+                error_resp = {"success": False, "message": str(e), "process_time_ms": round((time.perf_counter() - t0) * 1000, 3)}
+                await websocket.send_text(orjson.dumps(error_resp).decode())
+
+    except WebSocketDisconnect:
+        API_STATS["active_ws_connections"] -= 1
+    except Exception:
+        API_STATS["active_ws_connections"] -= 1
+        try:
+            await websocket.close()
+        except:
+            pass
+
 
 if __name__ == "__main__":
     try:
