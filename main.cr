@@ -454,7 +454,7 @@ ws "/api/v1/ws/stream" do |socket|
   authenticated = false
 
   socket.on_message do |msg|
-    start_time = Time.monotonic # <-- تم النقل هنا لتجنب أي أخطاء في الـ Nil
+    start_time = Time.monotonic
     begin
       req = JSON.parse(msg)
       
@@ -591,7 +591,9 @@ spawn do
   end
 end
 
-port = ENV.fetch("PORT", "8080").to_i
-Kemal.run do |config|
-  config.server.bind_tcp("0.0.0.0", port)
-end
+# -------------------------------------------------------------
+# التعديل النهائي والصحيح لأحدث إصدارات Crystal & Kemal (2026)
+# -------------------------------------------------------------
+Kemal.config.host_binding = "0.0.0.0"
+Kemal.config.port = ENV.fetch("PORT", "8080").to_i
+Kemal.run
