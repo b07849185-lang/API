@@ -10,3 +10,4 @@ pycryptodomex
 brotli
 yt-dlp
 httpx[http2,brotli]
+aiohttp
