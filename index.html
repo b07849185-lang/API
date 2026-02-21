@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>TitanOS Ultra Dashboard</title>
+    <title>Ultra Engine Dashboard</title>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800;900&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     
@@ -115,8 +115,12 @@
         tr:hover td { background: var(--table-hover); }
 
         .badge-res { background: var(--glass-border); color: var(--text-main); padding: 4px 10px; border-radius: 6px; font-family: 'Inter'; font-size: 0.85rem; font-weight: 800; }
+        .badge-success { background: rgba(52, 199, 89, 0.2); color: var(--success); }
+        .badge-danger { background: rgba(255, 59, 48, 0.2); color: var(--danger); }
+        
         .btn-action { background: var(--text-main); color: var(--bg-color); padding: 8px 18px; border-radius: 8px; text-decoration: none; font-weight: 800; font-size: 0.9rem; display: inline-flex; align-items: center; gap: 6px; border:none; cursor:pointer;}
         .btn-danger { background: var(--danger); color: white; }
+        .btn-success { background: var(--success); color: white; }
 
         .player-container { background: #000; border-radius: 20px; overflow: hidden; aspect-ratio: 16/9; width: 100%; margin-bottom: 1.5rem; position: relative; }
         video, audio { width: 100%; height: 100%; outline: none; }
@@ -157,7 +161,8 @@
             <ul class="nav-menu">
                 <li class="nav-item active" onclick="switchView('home', this)"><i class="fa-solid fa-bolt"></i> المحرك</li>
                 <li class="nav-item" onclick="switchView('stats', this)"><i class="fa-solid fa-chart-simple"></i> المراقبة</li>
-                <li class="nav-item" onclick="switchView('history', this)"><i class="fa-solid fa-clock-rotate-left"></i> السجل</li>
+                <li class="nav-item" onclick="switchView('server-logs', this)"><i class="fa-solid fa-satellite-dish"></i> طلبات الـ API</li>
+                <li class="nav-item" onclick="switchView('history', this)"><i class="fa-solid fa-clock-rotate-left"></i> السجل المحلي</li>
                 <li class="nav-item" onclick="switchView('settings', this)"><i class="fa-solid fa-sliders"></i> الإعدادات</li>
                 <li class="nav-item" style="color: var(--danger); margin-top: auto;" onclick="lockSystem()"><i class="fa-solid fa-lock"></i> قفل</li>
             </ul>
@@ -197,7 +202,7 @@
                     </div>
 
                     <div class="glass-panel" style="padding: 1.5rem;">
-                        <h3 style="font-weight: 900; margin-bottom: 1rem;">الجودات المتاحة</h3>
+                        <h3 style="font-weight: 900; margin-bottom: 1rem;">الجودات المتاحة (من 144p لـ 4K)</h3>
                         <div class="table-wrap">
                             <table id="formats-table">
                                 <thead><tr><th>الصيغة</th><th>الجودة</th><th>كودك</th><th>إجراء</th></tr></thead>
@@ -235,8 +240,21 @@
                 <button class="btn-action" onclick="fetchAdminStats()"><i class="fa-solid fa-rotate"></i> تحديث</button>
             </section>
 
+            <section id="view-server-logs" class="view-section">
+                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">سجل طلبات السيرفر الحي</h2>
+                <div class="glass-panel" style="padding: 1.5rem;">
+                    <div class="table-wrap" style="max-height: 500px; overflow-y: auto;">
+                        <table id="server-logs-table">
+                            <thead><tr><th>IP & Country</th><th>الوقت</th><th>الحالة</th><th>الزمن (ms)</th><th>الرابط</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <button class="btn-action" style="margin-top: 1.5rem;" onclick="fetchAdminStats()"><i class="fa-solid fa-rotate"></i> جلب أحدث الطلبات</button>
+                </div>
+            </section>
+
             <section id="view-history" class="view-section">
-                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">سجل العمليات</h2>
+                <h2 style="margin-bottom: 1.5rem; font-weight: 900;">سجل العمليات المحلية</h2>
                 <div class="glass-panel" style="padding: 1.5rem;">
                     <div class="table-wrap">
                         <table id="history-table">
@@ -251,6 +269,15 @@
             <section id="view-settings" class="view-section">
                 <h2 style="margin-bottom: 1.5rem; font-weight: 900;">إعدادات السيرفر</h2>
                 <div class="glass-panel" style="padding: 2rem; display: flex; flex-direction: column; gap: 2rem;">
+                    
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem;">
+                        <div>
+                            <h3 style="font-weight: 800;">حالة الـ API العام</h3>
+                            <p style="color: var(--text-muted); font-size: 0.9rem; margin-top: 5px;">فتح أو إغلاق جميع عمليات الاستخراج للعملاء.</p>
+                        </div>
+                        <button id="btn-toggle-api" class="btn-action btn-danger" onclick="toggleApiStatus()">جاري الفحص...</button>
+                    </div>
+
                     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--glass-border); padding-bottom: 1.5rem;">
                         <div>
                             <h3 style="font-weight: 800;">مسح الذاكرة المؤقتة</h3>
@@ -283,10 +310,10 @@
         document.documentElement.setAttribute('data-theme', savedTheme);
         updateThemeIcons(savedTheme);
 
-        // هنا حطينا المفتاح الصحيح اللي متسجل في سيرفر Go
         const API_KEY = "Titan_2026_Ultra_Fast"; 
         const BASE_URL = window.location.origin;
         let wsConnection = null;
+        let currentApiStatus = true;
 
         if (sessionStorage.getItem("eg_unlocked") === "true") {
             document.getElementById("lock-screen").style.display = "none";
@@ -324,7 +351,7 @@
             el.classList.add('active');
             if(window.innerWidth <= 768) document.getElementById('sidebar').classList.remove('open');
             
-            if(viewId === 'stats') fetchAdminStats();
+            if(viewId === 'stats' || viewId === 'server-logs' || viewId === 'settings') fetchAdminStats();
             if(viewId === 'history') loadHistory();
         }
 
@@ -393,7 +420,7 @@
             document.getElementById("result-display").style.display = "block";
             document.getElementById("res-title").innerText = data.title || "Unknown Title";
             document.getElementById("res-time").innerText = `${data.process_time_ms.toFixed(2)} ms`;
-            document.getElementById("res-method").innerText = data.cached ? "⚡ مأخوذ من الكاش" : "🌐 Go Native Engine";
+            document.getElementById("res-method").innerText = data.cached ? "⚡ مأخوذ من الكاش" : "🌐 " + data.extraction_method;
             document.getElementById("res-live").innerText = data.is_live ? "بث مباشر" : "فيديو مسجل";
 
             const pBox = document.getElementById("player-box");
@@ -442,7 +469,7 @@
                 `;
                 tbody.appendChild(tr);
             } else {
-                allFormats.slice(0, 15).forEach(f => {
+                allFormats.slice(0, 30).forEach(f => {
                     const tr = document.createElement("tr");
                     tr.innerHTML = `
                         <td><span class="badge-res">${f.ext || 'N/A'}</span></td>
@@ -497,20 +524,81 @@
                 const res = await fetch(`${BASE_URL}/api/v1/admin/stats`, { headers: { 'X-Titan-Key': API_KEY } });
                 if (!res.ok) return;
                 const stats = await res.json();
+                
                 document.getElementById("stat-ws").innerText = stats.active_ws_connections || 0;
                 document.getElementById("stat-ram").innerText = stats.memory_usage || "-- MB";
                 document.getElementById("stat-reqs").innerText = stats.total_requests || 0;
                 document.getElementById("stat-cache").innerText = stats.cached_files_count || 0;
+
+                currentApiStatus = stats.api_enabled;
+                updateApiToggleButton();
+                renderServerLogs(stats.recent_logs || []);
+
             } catch (e) {}
         }
 
+        function renderServerLogs(logs) {
+            const tbody = document.querySelector("#server-logs-table tbody");
+            if(!tbody) return;
+            tbody.innerHTML = "";
+            logs.forEach(log => {
+                const tr = document.createElement("tr");
+                const statusBadge = log.success ? '<span class="badge-res badge-success">نجاح</span>' : '<span class="badge-res badge-danger">فشل</span>';
+                
+                let timeStr = log.time;
+                try {
+                    const d = new Date(log.time + "Z");
+                    timeStr = d.toLocaleTimeString('ar-EG');
+                } catch(e) {}
+
+                tr.innerHTML = `
+                    <td dir="ltr"><span class="badge-res">${log.country}</span> ${log.ip}</td>
+                    <td dir="ltr">${timeStr}</td>
+                    <td>${statusBadge}</td>
+                    <td dir="ltr">${log.process_time_ms.toFixed(0)}</td>
+                    <td style="max-width:150px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;" dir="ltr">${log.url}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        async function toggleApiStatus() {
+            const newStatus = !currentApiStatus;
+            try {
+                const res = await fetch(`${BASE_URL}/api/v1/admin/config`, { 
+                    method: "POST", 
+                    headers: { 'X-Titan-Key': API_KEY, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_enabled: newStatus })
+                });
+                const data = await res.json();
+                if(data.success) {
+                    currentApiStatus = data.current_config.api_enabled;
+                    updateApiToggleButton();
+                }
+            } catch(e) {
+                alert("حدث خطأ أثناء تعديل حالة הـ API");
+            }
+        }
+
+        function updateApiToggleButton() {
+            const btn = document.getElementById("btn-toggle-api");
+            if(!btn) return;
+            if(currentApiStatus) {
+                btn.className = "btn-action btn-danger";
+                btn.innerHTML = '<i class="fa-solid fa-lock"></i> إغلاق الـ API';
+            } else {
+                btn.className = "btn-action btn-success";
+                btn.innerHTML = '<i class="fa-solid fa-lock-open"></i> فتح الـ API';
+            }
+        }
+
         async function clearServerCache() {
-            if(!confirm("مسح جميع البيانات من الرام؟")) return;
+            if(!confirm("هل أنت متأكد من مسح جميع البيانات من الرام؟")) return;
             try {
                 const res = await fetch(`${BASE_URL}/api/v1/admin/clear_cache`, { method: "POST", headers: { 'X-Titan-Key': API_KEY } });
                 const data = await res.json();
                 if(data.success) {
-                    alert("تم تنظيف الرام.");
+                    alert("تم تنظيف الرام بنجاح.");
                     fetchAdminStats();
                 }
             } catch(e) {}
