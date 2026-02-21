@@ -238,13 +238,14 @@ func (mc *MemoryCache) ClearAll() {
 
 func executeYtDlp(query string, cookie string, attempt int) (map[string]interface{}, string, error) {
 	args := []string{
-		"--dump-json", 
-		"--no-warnings", 
-		"--skip-download", 
+		"--dump-json",
+		"--no-warnings",
+		"--skip-download",
 		"--no-playlist",
-		"--socket-timeout", "12",
+		"--socket-timeout", "15",
 		"--compat-options", "no-youtube-unavailable-videos",
 		"--geo-bypass",
+		"--impersonate", "chrome",
 	}
 
 	if cookie != "" {
@@ -253,17 +254,16 @@ func executeYtDlp(query string, cookie string, attempt int) (map[string]interfac
 
 	method := ""
 	if attempt == 1 {
-		args = append(args, "--extractor-args", "youtube:player_client=web", "--remote-components", "ejs:github")
-		method = "Go Engine (Web Client)"
+		args = append(args, "--extractor-args", "youtube:player_client=web", "--remote-components", "ejs:github,ejs:npm")
+		method = "Go Engine (Web Client + Chrome Spoofing)"
 	} else if attempt == 2 {
-		args = append(args, "--extractor-args", "youtube:player_client=android,web;player_skip=configs", "--remote-components", "ejs:github")
-		method = "Go Engine (Android/Web)"
+		args = append(args, "--extractor-args", "youtube:player_client=web,android;player_skip=configs", "--remote-components", "ejs:github,ejs:npm")
+		method = "Go Engine (Web/Android + Chrome Spoofing)"
 	} else {
 		args = append(args, "--extractor-args", "youtube:player_client=web")
-		method = "Go Engine (Web Fallback)"
+		method = "Go Engine (Web Fallback + Chrome Spoofing)"
 	}
 
-	// تظبيط البحث عشان يقبل أي لغة (عربي أو إنجليزي)
 	if !strings.HasPrefix(query, "http") && !strings.HasPrefix(query, "ytsearch") {
 		args = append(args, "ytsearch1:"+query)
 	} else {
@@ -276,7 +276,7 @@ func executeYtDlp(query string, cookie string, attempt int) (map[string]interfac
 	cmd := exec.CommandContext(ctx, YtDlpBin, args...)
 	
 	var out bytes.Buffer
-	var stderr bytes.Buffer // هنا بنصطاد الأخطاء الحقيقية
+	var stderr bytes.Buffer
 	cmd.Stdout = &out
 	cmd.Stderr = &stderr
 
@@ -286,8 +286,7 @@ func executeYtDlp(query string, cookie string, attempt int) (map[string]interfac
 		if errMsg == "" {
 			errMsg = err.Error()
 		}
-		// هيرجعلك الخطأ الحقيقي اللي طالع من يوتيوب أو من yt-dlp
-		return nil, "", fmt.Errorf("YT-DLP Error: %s", errMsg) 
+		return nil, "", fmt.Errorf("YT-DLP Error: %s", errMsg)
 	}
 
 	var result map[string]interface{}
