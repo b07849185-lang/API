@@ -363,15 +363,15 @@ get "/api/v1/extract" do |env|
 
   if !verify_auth(env)
     STATS.inc_fail
-    env.response.status_code = 403
-    halt env, %({"success":false,"message":"Forbidden"})
+    env.response.content_type = "application/json"
+    halt env, 403, %({"success":false,"message":"Forbidden"})
   end
 
   url = env.params.query["url"]?
   if !url || url.empty?
     STATS.inc_fail
-    env.response.status_code = 400
-    halt env, %({"success":false,"message":"Missing URL"})
+    env.response.content_type = "application/json"
+    halt env, 400, %({"success":false,"message":"Missing URL"})
   end
 
   audio_only_str = env.params.query["audio_only"]? || "true"
@@ -389,7 +389,7 @@ get "/api/v1/extract" do |env|
         parsed_cache["process_time_ms"] = JSON::Any.new((Time.monotonic - start_time).total_milliseconds)
         STATS.inc_success
         env.response.content_type = "application/json"
-        halt env, parsed_cache.to_json
+        halt env, 200, parsed_cache.to_json
       rescue
       end
     end
@@ -441,9 +441,8 @@ get "/api/v1/extract" do |env|
     resp_json
   rescue ex
     STATS.inc_fail
-    env.response.status_code = 500
     env.response.content_type = "application/json"
-    %({"success":false,"message":#{ex.message.to_json},"process_time_ms":#{(Time.monotonic - start_time).total_milliseconds}})
+    halt env, 500, %({"success":false,"message":#{ex.message.to_json},"process_time_ms":#{(Time.monotonic - start_time).total_milliseconds}})
   end
 end
 
@@ -534,8 +533,8 @@ end
 
 get "/api/v1/admin/stats" do |env|
   if !verify_auth(env)
-    env.response.status_code = 403
-    halt env, %({"success":false,"message":"Forbidden"})
+    env.response.content_type = "application/json"
+    halt env, 403, %({"success":false,"message":"Forbidden"})
   end
   env.response.content_type = "application/json"
   {
@@ -553,8 +552,8 @@ end
 
 post "/api/v1/admin/clear_cache" do |env|
   if !verify_auth(env)
-    env.response.status_code = 403
-    halt env, %({"success":false,"message":"Forbidden"})
+    env.response.content_type = "application/json"
+    halt env, 403, %({"success":false,"message":"Forbidden"})
   end
   CACHE.clear_all
   env.response.content_type = "application/json"
@@ -563,8 +562,8 @@ end
 
 post "/api/v1/admin/config" do |env|
   if !verify_auth(env)
-    env.response.status_code = 403
-    halt env, %({"success":false,"message":"Forbidden"})
+    env.response.content_type = "application/json"
+    halt env, 403, %({"success":false,"message":"Forbidden"})
   end
   begin
     body = env.request.body.not_nil!.gets_to_end
